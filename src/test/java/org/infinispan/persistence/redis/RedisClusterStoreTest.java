@@ -1,11 +1,14 @@
 package org.infinispan.persistence.redis;
 
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.persistence.BaseNonBlockingStoreTest;
 import org.infinispan.persistence.BaseStoreTest;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfigurationBuilder;
 import org.infinispan.persistence.redis.support.RedisCluster;
 import org.infinispan.persistence.spi.AdvancedLoadWriteStore;
+import org.infinispan.persistence.spi.NonBlockingStore;
 import org.infinispan.persistence.spi.PersistenceException;
 import org.infinispan.test.TestingUtil;
 import org.infinispan.test.fwk.TestCacheManagerFactory;
@@ -20,7 +23,7 @@ import static org.testng.AssertJUnit.assertNull;
 import static org.testng.AssertJUnit.assertTrue;
 
 @Test(testName = "persistence.redis.RedisClusterStoreTest", groups = "functional")
-public class RedisClusterStoreTest extends BaseStoreTest
+public class RedisClusterStoreTest extends BaseNonBlockingStoreTest
 {
     RedisCluster redisCluster;
 
@@ -41,27 +44,26 @@ public class RedisClusterStoreTest extends BaseStoreTest
     }
 
     @Override
-    protected AdvancedLoadWriteStore createStore() throws Exception
-    {
+    protected NonBlockingStore<Object, Object> createStore() {
+        return new RedisStore<>();
+    }
+
+    @Override
+    protected Configuration buildConfig(ConfigurationBuilder configurationBuilder) {
         ConfigurationBuilder builder = TestCacheManagerFactory.getDefaultCacheConfiguration(false);
         RedisStoreConfigurationBuilder storeConfigurationBuilder = builder.persistence().addStore(RedisStoreConfigurationBuilder.class);
         storeConfigurationBuilder
-            .topology(Topology.CLUSTER)
-            .addServer()
+                .topology(Topology.CLUSTER)
+                .addServer()
                 .host("localhost")
-                .port(6379)
-            .addServer()
+                .port(6390)
+                .addServer()
                 .host("localhost")
-                .port(6380)
-            .addServer()
+                .port(6391)
+                .addServer()
                 .host("localhost")
-                .port(6381)
-        ;
-
-        RedisStore store = new RedisStore();
-        store.init(createContext(builder.build()));
-
-        return store;
+                .port(6392);
+        return builder.build();
     }
 
     @Override

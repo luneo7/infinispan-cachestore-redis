@@ -1,9 +1,12 @@
 package org.infinispan.persistence.redis;
 
 import org.infinispan.Cache;
+import org.infinispan.commons.test.CommonsTestingUtil;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.cache.PersistenceConfigurationBuilder;
+import org.infinispan.configuration.global.GlobalConfigurationBuilder;
+import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.persistence.BaseStoreFunctionalTest;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Topology;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfigurationBuilder;
@@ -33,23 +36,32 @@ public class RedisSentinelStoreFunctionalTest extends BaseStoreFunctionalTest
     }
 
     @Override
-    protected PersistenceConfigurationBuilder createCacheStoreConfig(
-        PersistenceConfigurationBuilder persistence,
-        boolean b
-    )
+    protected PersistenceConfigurationBuilder createCacheStoreConfig(PersistenceConfigurationBuilder persistence,
+                                                                     String cacheName,
+                                                                     boolean preload)
     {
-        return createCacheStoreConfig(persistence, b, 0);
+        return createCacheStoreConfig(persistence, preload, 0);
+    }
+
+    @Override
+    protected EmbeddedCacheManager createCacheManager() throws Exception {
+        GlobalConfigurationBuilder global = new GlobalConfigurationBuilder();
+        global.globalState().persistentLocation(CommonsTestingUtil.tmpDirectory(this.getClass()));
+        global.serialization().addContextInitializer(getSerializationContextInitializer());
+        global.cacheContainer().security().authorization().disable();
+        return createCacheManager(false, global, new ConfigurationBuilder());
     }
 
     protected PersistenceConfigurationBuilder createCacheStoreConfig(
         PersistenceConfigurationBuilder persistence,
-        boolean b,
+        boolean preload,
         int database
     )
     {
         persistence
             .addStore(RedisStoreConfigurationBuilder.class)
             .topology(Topology.SENTINEL)
+            .preload(preload)
             .masterName("mymaster")
             .addSentinel()
             .host("localhost")

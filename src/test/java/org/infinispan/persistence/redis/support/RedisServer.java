@@ -5,7 +5,7 @@ import java.io.IOException;
 public class RedisServer extends AbstractRedisServer
 {
     private final int SERVER_NUM = 1;
-    private final int START_PORT = 6379;
+    private final int START_PORT = 6390;
     private final String testPath;
     private Process serverProcess;
 

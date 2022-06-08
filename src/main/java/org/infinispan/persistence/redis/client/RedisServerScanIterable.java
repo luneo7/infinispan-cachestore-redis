@@ -4,20 +4,20 @@ import redis.clients.jedis.Jedis;
 
 import java.util.Iterator;
 
-final public class RedisServerScanIterable implements Iterable<Object>
+final public class RedisServerScanIterable implements Iterable<byte[]>
 {
-    private RedisMarshaller<String> marshaller;
-    private Jedis client;
+    private final Jedis client;
+    private final String prefix;
 
-    public RedisServerScanIterable(Jedis client, RedisMarshaller<String> marshaller)
+    public RedisServerScanIterable(Jedis client, String prefix)
     {
         this.client = client;
-        this.marshaller = marshaller;
+        this.prefix = prefix;
     }
 
     @Override
-    public Iterator<Object> iterator()
+    public Iterator<byte[]> iterator()
     {
-        return new RedisServerKeyIterator(this.client, this.marshaller);
+        return new RedisServerKeyIterator(client, prefix);
     }
 }

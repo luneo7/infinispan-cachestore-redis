@@ -13,11 +13,11 @@ final public class RedisServerConfiguration
 
     public String host()
     {
-        return this.host;
+        return host;
     }
 
     public int port()
     {
-        return this.port;
+        return port;
     }
 }

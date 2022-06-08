@@ -4,20 +4,17 @@ import redis.clients.jedis.JedisCluster;
 
 import java.util.Iterator;
 
-final public class RedisClusterNodeIterable implements Iterable<Object>
-{
-    private RedisMarshaller<String> marshaller;
-    private JedisCluster client;
+final public class RedisClusterNodeIterable implements Iterable<byte[]> {
+    private final JedisCluster client;
+    private final String prefix;
 
-    public RedisClusterNodeIterable(JedisCluster client, RedisMarshaller<String> marshaller)
-    {
+    public RedisClusterNodeIterable(JedisCluster client, String prefix) {
         this.client = client;
-        this.marshaller = marshaller;
+        this.prefix = prefix;
     }
 
     @Override
-    public Iterator<Object> iterator()
-    {
-        return new RedisClusterNodeIterator(this.client, this.marshaller);
+    public Iterator<byte[]> iterator() {
+        return new RedisClusterNodeIterator(client, prefix);
     }
 }

@@ -1,9 +1,12 @@
 package org.infinispan.persistence.redis;
 
 import org.infinispan.Cache;
+import org.infinispan.commons.test.CommonsTestingUtil;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.cache.PersistenceConfigurationBuilder;
+import org.infinispan.configuration.global.GlobalConfigurationBuilder;
+import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.persistence.BaseStoreFunctionalTest;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Topology;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfigurationBuilder;
@@ -34,28 +37,27 @@ public class RedisServerStoreFunctionalTest extends BaseStoreFunctionalTest
     }
 
     @Override
-    protected PersistenceConfigurationBuilder createCacheStoreConfig(
-        PersistenceConfigurationBuilder persistence,
-        boolean b
-    )
+    protected PersistenceConfigurationBuilder createCacheStoreConfig(PersistenceConfigurationBuilder persistence,
+                                                                     String cacheName,
+                                                                     boolean preload)
     {
-        return createCacheStoreConfig(persistence, b, 0);
+        return createCacheStoreConfig(persistence, preload, 0);
     }
 
     protected PersistenceConfigurationBuilder createCacheStoreConfig(
         PersistenceConfigurationBuilder persistence,
-        boolean b,
+        boolean preload,
         int database
     )
     {
         persistence
             .addStore(RedisStoreConfigurationBuilder.class)
             .topology(Topology.SERVER)
+            .preload(preload)
             .addServer()
             .host("localhost")
-            .port(6379)
-            .database(database)
-        ;
+            .port(6390)
+            .database(database);
 
         return persistence;
     }
@@ -73,6 +75,15 @@ public class RedisServerStoreFunctionalTest extends BaseStoreFunctionalTest
     }
 
     @Override
+    protected EmbeddedCacheManager createCacheManager() throws Exception {
+        GlobalConfigurationBuilder global = new GlobalConfigurationBuilder();
+        global.globalState().persistentLocation(CommonsTestingUtil.tmpDirectory(this.getClass()));
+        global.serialization().addContextInitializer(getSerializationContextInitializer());
+        global.cacheContainer().security().authorization().disable();
+        return createCacheManager(false, global, new ConfigurationBuilder());
+    }
+
+    @Override
     public void testTwoCachesSameCacheStore()
     {
         ConfigurationBuilder cb1 = new ConfigurationBuilder();
@@ -85,10 +96,10 @@ public class RedisServerStoreFunctionalTest extends BaseStoreFunctionalTest
         this.createCacheStoreConfig(cb2.persistence(), false, 1);
         Configuration c2 = cb2.build();
 
-        this.cacheManager.defineConfiguration("testTwoCachesSameCacheStore-1", c1);
-        this.cacheManager.defineConfiguration("testTwoCachesSameCacheStore-2", c2);
-        Cache first = this.cacheManager.getCache("testTwoCachesSameCacheStore-1");
-        Cache second = this.cacheManager.getCache("testTwoCachesSameCacheStore-2");
+        cacheManager.defineConfiguration("testTwoCachesSameCacheStore-1", c1);
+        cacheManager.defineConfiguration("testTwoCachesSameCacheStore-2", c2);
+        Cache first = cacheManager.getCache("testTwoCachesSameCacheStore-1");
+        Cache second = cacheManager.getCache("testTwoCachesSameCacheStore-2");
 
         first.start();
         second.start();

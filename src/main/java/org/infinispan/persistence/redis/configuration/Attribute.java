@@ -3,8 +3,7 @@ package org.infinispan.persistence.redis.configuration;
 import java.util.HashMap;
 import java.util.Map;
 
-public enum Attribute
-{
+public enum Attribute {
     // must be first
     UNKNOWN(null),
 
@@ -25,13 +24,15 @@ public enum Attribute
     TEST_ON_CREATE("test-on-create"),
     TEST_ON_BORROW("test-on-borrow"),
     TEST_ON_RETURN("test-on-return"),
-    TEST_ON_IDLE("test-on-idle")
-    ;
+    TEST_ON_IDLE("test-on-idle"),
+    COMPRESSOR("compressor"),
+    COMPRESSION_BLOCK_SIZE("compression-block-size"),
+    COMPRESSION_LEVEL("compression-level"),
+    KEY_TO_STRING_MAPPER("key-to-string-mapper");
 
     private final String name;
 
-    private Attribute(final String name)
-    {
+    Attribute(final String name) {
         this.name = name;
     }
 
@@ -40,15 +41,13 @@ public enum Attribute
      *
      * @return the local name
      */
-    public String getLocalName()
-    {
+    public String getLocalName() {
         return name;
     }
 
     private static final Map<String, Attribute> attributes;
 
-    static
-    {
+    static {
         final Map<String, Attribute> map = new HashMap<String, Attribute>(64);
 
         for (Attribute attribute : values()) {
@@ -61,8 +60,7 @@ public enum Attribute
         attributes = map;
     }
 
-    public static Attribute forName(final String localName)
-    {
+    public static Attribute forName(final String localName) {
         final Attribute attribute = attributes.get(localName);
         return attribute == null ? UNKNOWN : attribute;
     }

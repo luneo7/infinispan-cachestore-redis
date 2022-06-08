@@ -1,6 +1,10 @@
 package org.infinispan.persistence.redis;
 
+import org.infinispan.commons.test.CommonsTestingUtil;
+import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.cache.PersistenceConfigurationBuilder;
+import org.infinispan.configuration.global.GlobalConfigurationBuilder;
+import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.persistence.BaseStoreFunctionalTest;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfigurationBuilder;
 import org.infinispan.persistence.redis.support.RedisCluster;
@@ -31,20 +35,29 @@ public class RedisClusterStoreFunctionalTest extends BaseStoreFunctionalTest
     }
 
     @Override
-    protected PersistenceConfigurationBuilder createCacheStoreConfig(
-        PersistenceConfigurationBuilder persistence,
-        boolean b
-    )
+    protected PersistenceConfigurationBuilder createCacheStoreConfig(PersistenceConfigurationBuilder persistence,
+                                                                     String cacheName,
+                                                                     boolean preload)
     {
         persistence
             .addStore(RedisStoreConfigurationBuilder.class)
             .topology(Topology.CLUSTER)
+            .preload(preload)
             .addServer()
             .host("localhost")
-            .port(6379)
+            .port(6390)
         ;
 
         return persistence;
+    }
+
+    @Override
+    protected EmbeddedCacheManager createCacheManager() throws Exception {
+        GlobalConfigurationBuilder global = new GlobalConfigurationBuilder();
+        global.globalState().persistentLocation(CommonsTestingUtil.tmpDirectory(this.getClass()));
+        global.serialization().addContextInitializer(getSerializationContextInitializer());
+        global.cacheContainer().security().authorization().disable();
+        return createCacheManager(false, global, new ConfigurationBuilder());
     }
 
     @Override

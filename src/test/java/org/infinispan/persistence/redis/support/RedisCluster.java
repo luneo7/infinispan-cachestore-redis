@@ -7,7 +7,7 @@ import java.util.List;
 public class RedisCluster extends AbstractRedisServer
 {
     private final int SLOTS_PER_CLUSTER_NODE = 5462;
-    private final int START_PORT = 6379;
+    private final int START_PORT = 6390;
     List<Process> serverList = new ArrayList<Process>();
 
     private final String testPath;

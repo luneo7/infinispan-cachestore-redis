@@ -2,7 +2,8 @@ package org.infinispan.persistence.redis;
 
 import org.infinispan.Cache;
 import org.infinispan.persistence.redis.support.RedisSentinel;
-import org.infinispan.persistence.spi.CacheLoader;
+import org.infinispan.persistence.spi.NonBlockingStore;
+import org.infinispan.persistence.support.WaitDelegatingNonBlockingStore;
 import org.infinispan.test.AbstractInfinispanTest;
 import org.infinispan.test.CacheManagerCallable;
 import org.infinispan.test.TestingUtil;
@@ -37,9 +38,9 @@ public class RedisSentinelStoreConfigTest extends AbstractInfinispanTest
             @Override
             public void call() {
                 Cache<Object, Object> cache = cm.getCache();
-                CacheLoader cacheLoader = TestingUtil.getCacheLoader(cache);
-                assert cacheLoader != null;
-                assert cacheLoader instanceof RedisStore;
+                NonBlockingStore<Object, Object> store = TestingUtil.getFirstStore(cache);
+                assert store != null;
+                assert store instanceof RedisStore;
 
                 cache.put("k", "v");
 

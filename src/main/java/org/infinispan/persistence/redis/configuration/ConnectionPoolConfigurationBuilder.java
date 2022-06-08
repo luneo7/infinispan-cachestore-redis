@@ -126,15 +126,15 @@ final public class ConnectionPoolConfigurationBuilder extends AbstractRedisStore
     @Override
     public Builder<?> read(ConnectionPoolConfiguration template)
     {
-        this.maxTotal = template.maxTotal();
-        this.maxIdle = template.maxIdle();
-        this.minIdle = template.minIdle();
-        this.timeBetweenEvictionRuns = template.timeBetweenEvictionRuns();
-        this.minEvictableIdleTime = template.minEvictableIdleTime();
-        this.testOnCreate = template.testOnCreate();
-        this.testOnBorrow = template.testOnBorrow();
-        this.testOnReturn = template.testOnReturn();
-        this.testOnIdle = template.testOnIdle();
+        maxTotal = template.maxTotal();
+        maxIdle = template.maxIdle();
+        minIdle = template.minIdle();
+        timeBetweenEvictionRuns = template.timeBetweenEvictionRuns();
+        minEvictableIdleTime = template.minEvictableIdleTime();
+        testOnCreate = template.testOnCreate();
+        testOnBorrow = template.testOnBorrow();
+        testOnReturn = template.testOnReturn();
+        testOnIdle = template.testOnIdle();
         return this;
     }
 }

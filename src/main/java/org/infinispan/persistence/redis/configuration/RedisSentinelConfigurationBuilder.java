@@ -47,8 +47,8 @@ public class RedisSentinelConfigurationBuilder extends AbstractRedisStoreConfigu
     @Override
     public Builder<?> read(RedisServerConfiguration template)
     {
-        this.host = template.host();
-        this.port = template.port();
+        host = template.host();
+        port = template.port();
 
         return this;
     }

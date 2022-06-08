@@ -1,11 +1,12 @@
 package org.infinispan.persistence.redis;
 
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
-import org.infinispan.persistence.BaseStoreTest;
+import org.infinispan.persistence.BaseNonBlockingStoreTest;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Topology;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfigurationBuilder;
 import org.infinispan.persistence.redis.support.RedisServer;
-import org.infinispan.persistence.spi.AdvancedLoadWriteStore;
+import org.infinispan.persistence.spi.NonBlockingStore;
 import org.infinispan.persistence.spi.PersistenceException;
 import org.infinispan.test.fwk.TestCacheManagerFactory;
 import org.testng.annotations.AfterClass;
@@ -15,7 +16,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 
 @Test(testName = "persistence.redis.RedisServerStoreTest", groups = "functional")
-public class RedisServerStoreTest extends BaseStoreTest
+public class RedisServerStoreTest extends BaseNonBlockingStoreTest
 {
     RedisServer redisServer;
 
@@ -36,21 +37,22 @@ public class RedisServerStoreTest extends BaseStoreTest
     }
 
     @Override
-    protected AdvancedLoadWriteStore createStore() throws Exception
+    protected NonBlockingStore createStore() throws Exception
     {
+        return new RedisStore();
+    }
+
+    @Override
+    protected Configuration buildConfig(ConfigurationBuilder configurationBuilder) {
         ConfigurationBuilder builder = TestCacheManagerFactory.getDefaultCacheConfiguration(false);
         RedisStoreConfigurationBuilder storeConfigurationBuilder = builder.persistence().addStore(RedisStoreConfigurationBuilder.class);
         storeConfigurationBuilder
-            .topology(Topology.SERVER)
-            .addServer()
+                .topology(Topology.SERVER)
+                .addServer()
                 .host("localhost")
-                .port(6379)
-        ;
+                .port(6390);
 
-        RedisStore store = new RedisStore();
-        store.init(createContext(builder.build()));
-
-        return store;
+        return builder.build();
     }
 
     @Override

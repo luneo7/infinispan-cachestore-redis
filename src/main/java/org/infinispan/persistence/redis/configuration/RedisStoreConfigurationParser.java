@@ -1,52 +1,50 @@
 package org.infinispan.persistence.redis.configuration;
 
+import org.infinispan.commons.configuration.io.ConfigurationReader;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
 import org.infinispan.configuration.cache.PersistenceConfigurationBuilder;
-import org.infinispan.configuration.parsing.*;
+import org.infinispan.configuration.parsing.CacheParser;
+import org.infinispan.configuration.parsing.ConfigurationBuilderHolder;
+import org.infinispan.configuration.parsing.ConfigurationParser;
+import org.infinispan.configuration.parsing.Namespace;
+import org.infinispan.configuration.parsing.Namespaces;
+import org.infinispan.configuration.parsing.ParseUtils;
+import org.infinispan.configuration.parsing.Parser;
+import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Compressor;
+import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Topology;
 import org.kohsuke.MetaInfServices;
 
-import javax.xml.stream.XMLStreamConstants;
-import javax.xml.stream.XMLStreamException;
-
 import static org.infinispan.commons.util.StringPropertyReplacer.replaceProperties;
-import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Topology;
+import static org.infinispan.persistence.redis.configuration.RedisStoreConfigurationParser.NAMESPACE;
 
 @MetaInfServices
 @Namespaces({
-    @Namespace(uri = "urn:infinispan:config:store:redis:8.0", root = "redis-store"),
-    @Namespace(root = "redis-store")
+        @Namespace(uri = NAMESPACE + "*", root = "redis-store"),
+        @Namespace(root = "redis-store")
 })
-final public class RedisStoreConfigurationParser80 implements ConfigurationParser
-{
+final public class RedisStoreConfigurationParser implements ConfigurationParser {
+    static final String NAMESPACE = Parser.NAMESPACE + "store:redis:";
+
     @Override
-    public void readElement(XMLExtendedStreamReader reader, ConfigurationBuilderHolder holder)
-        throws XMLStreamException
-    {
+    public void readElement(ConfigurationReader reader, ConfigurationBuilderHolder holder) {
         ConfigurationBuilder builder = holder.getCurrentConfigurationBuilder();
 
         Element element = Element.forName(reader.getLocalName());
-        switch (element) {
-            case REDIS_STORE: {
-                this.parseRedisStore(reader, builder.persistence(), holder.getClassLoader());
-                break;
-            }
-            default: {
-                throw ParseUtils.unexpectedElement(reader);
-            }
+        if (element == Element.REDIS_STORE) {
+            this.parseRedisStore(reader, builder.persistence());
+        } else {
+            throw ParseUtils.unexpectedElement(reader);
         }
     }
 
     private void parseRedisStore(
-        XMLExtendedStreamReader reader,
-        PersistenceConfigurationBuilder persistenceBuilder,
-        ClassLoader classLoader
-    )
-        throws XMLStreamException
-    {
+            ConfigurationReader reader,
+            PersistenceConfigurationBuilder persistenceBuilder
+    ) {
         RedisStoreConfigurationBuilder builder = new RedisStoreConfigurationBuilder(persistenceBuilder);
         this.parseRedisStoreAttributes(reader, builder);
 
-        while (reader.hasNext() && (reader.nextTag() != XMLStreamConstants.END_ELEMENT)) {
+        while (reader.inTag()) {
             Element element = Element.forName(reader.getLocalName());
             switch (element) {
                 case SERVER: {
@@ -63,9 +61,8 @@ final public class RedisStoreConfigurationParser80 implements ConfigurationParse
                     this.parseConnectionPool(reader, builder.connectionPool());
                     break;
                 }
-
                 default: {
-                    Parser80.parseStoreElement(reader, builder);
+                    CacheParser.parseStoreElement(reader, builder);
                     break;
                 }
             }
@@ -74,13 +71,11 @@ final public class RedisStoreConfigurationParser80 implements ConfigurationParse
         persistenceBuilder.addStore(builder);
     }
 
-    private void parseServer(XMLExtendedStreamReader reader, RedisServerConfigurationBuilder builder)
-        throws XMLStreamException
-    {
+    private void parseServer(ConfigurationReader reader, RedisServerConfigurationBuilder builder) {
         for (int i = 0; i < reader.getAttributeCount(); i++) {
             ParseUtils.requireNoNamespaceAttribute(reader, i);
             String value = replaceProperties(reader.getAttributeValue(i));
-            Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
+            Attribute attribute = Attribute.forName(reader.getAttributeName(i));
             switch (attribute) {
                 case HOST:
                     builder.host(value);
@@ -98,13 +93,11 @@ final public class RedisStoreConfigurationParser80 implements ConfigurationParse
         ParseUtils.requireNoContent(reader);
     }
 
-    private void parseSentinel(XMLExtendedStreamReader reader, RedisSentinelConfigurationBuilder builder)
-        throws XMLStreamException
-    {
+    private void parseSentinel(ConfigurationReader reader, RedisSentinelConfigurationBuilder builder) {
         for (int i = 0; i < reader.getAttributeCount(); i++) {
             ParseUtils.requireNoNamespaceAttribute(reader, i);
             String value = replaceProperties(reader.getAttributeValue(i));
-            Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
+            Attribute attribute = Attribute.forName(reader.getAttributeName(i));
             switch (attribute) {
                 case HOST:
                     builder.host(value);
@@ -122,13 +115,11 @@ final public class RedisStoreConfigurationParser80 implements ConfigurationParse
         ParseUtils.requireNoContent(reader);
     }
 
-    private void parseConnectionPool(XMLExtendedStreamReader reader, ConnectionPoolConfigurationBuilder builder)
-        throws XMLStreamException
-    {
+    private void parseConnectionPool(ConfigurationReader reader, ConnectionPoolConfigurationBuilder builder) {
         for (int i = 0; i < reader.getAttributeCount(); i++) {
             ParseUtils.requireNoNamespaceAttribute(reader, i);
             String value = replaceProperties(reader.getAttributeValue(i));
-            Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
+            Attribute attribute = Attribute.forName(reader.getAttributeName(i));
             switch (attribute) {
                 case TIME_BETWEEN_EVICTION_RUNS: {
                     builder.timeBetweenEvictionRuns(Long.parseLong(value));
@@ -183,13 +174,11 @@ final public class RedisStoreConfigurationParser80 implements ConfigurationParse
         ParseUtils.requireNoContent(reader);
     }
 
-    private void parseRedisStoreAttributes(XMLExtendedStreamReader reader, RedisStoreConfigurationBuilder builder)
-        throws XMLStreamException
-    {
+    private void parseRedisStoreAttributes(ConfigurationReader reader, RedisStoreConfigurationBuilder builder) {
         for (int i = 0; i < reader.getAttributeCount(); i++) {
             ParseUtils.requireNoNamespaceAttribute(reader, i);
             String value = replaceProperties(reader.getAttributeValue(i));
-            Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
+            Attribute attribute = Attribute.forName(reader.getAttributeName(i));
             switch (attribute) {
                 case DATABASE: {
                     builder.database(Integer.parseInt(value));
@@ -225,13 +214,36 @@ final public class RedisStoreConfigurationParser80 implements ConfigurationParse
                     builder.maxRedirections(Integer.parseInt(value));
                     break;
                 }
+
+                case COMPRESSOR: {
+                    builder.compressor(Compressor.valueOf(value.toUpperCase()));
+                    break;
+                }
+
+                case COMPRESSION_BLOCK_SIZE: {
+                    builder.compressionBlockSize(Integer.parseInt(value));
+                    break;
+                }
+
+                case COMPRESSION_LEVEL: {
+                    builder.compressionLevel(Integer.parseInt(value));
+                    break;
+                }
+
+                case KEY_TO_STRING_MAPPER: {
+                    builder.key2StringMapper(value);
+                    break;
+                }
+
+                default: {
+                    CacheParser.parseStoreAttribute(reader, i, builder);
+                }
             }
         }
     }
 
     @Override
-    public Namespace[] getNamespaces()
-    {
+    public Namespace[] getNamespaces() {
         return ParseUtils.getNamespaceAnnotations(getClass());
     }
 }

@@ -7,7 +7,7 @@ import java.util.List;
 public class RedisSentinel extends AbstractRedisServer
 {
     private final int SERVER_NUM = 1;
-    private final int START_PORT = 6379;
+    private final int START_PORT = 6480;
     private final int START_SENTINEL_PORT = 26379;
     private final String testPath;
     private Process serverProcess;

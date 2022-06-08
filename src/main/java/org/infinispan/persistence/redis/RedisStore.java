@@ -1,397 +1,480 @@
 package org.infinispan.persistence.redis;
 
-import org.infinispan.commons.io.ByteBuffer;
-import org.infinispan.persistence.redis.client.*;
-import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration;
+import io.reactivex.rxjava3.core.Flowable;
 import org.infinispan.commons.configuration.ConfiguredBy;
-import org.infinispan.filter.KeyFilter;
-import org.infinispan.marshall.core.MarshalledEntry;
-import org.infinispan.persistence.TaskContextImpl;
-import org.infinispan.persistence.spi.*;
+import org.infinispan.commons.time.TimeService;
+import org.infinispan.commons.util.IntSet;
+import org.infinispan.commons.util.Util;
+import org.infinispan.distribution.ch.KeyPartitioner;
+import org.infinispan.marshall.persistence.PersistenceMarshaller;
+import org.infinispan.metadata.Metadata;
+import org.infinispan.persistence.internal.PersistenceUtil;
+import org.infinispan.persistence.keymappers.MarshallingTwoWayKey2StringMapper;
+import org.infinispan.persistence.keymappers.TwoWayKey2StringMapper;
+import org.infinispan.persistence.redis.client.RedisConnection;
+import org.infinispan.persistence.redis.client.RedisConnectionPool;
+import org.infinispan.persistence.redis.client.RedisConnectionPoolFactory;
+import org.infinispan.persistence.redis.compression.Compressor;
+import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration;
+import org.infinispan.persistence.redis.keymapper.DefaultTwoWayKey2StringMapper;
+import org.infinispan.persistence.spi.InitializationContext;
+import org.infinispan.persistence.spi.MarshallableEntry;
+import org.infinispan.persistence.spi.MarshallableEntryFactory;
+import org.infinispan.persistence.spi.MarshalledValue;
+import org.infinispan.persistence.spi.NonBlockingStore;
+import org.infinispan.persistence.spi.PersistenceException;
+import org.infinispan.protostream.annotations.ProtoFactory;
+import org.infinispan.protostream.annotations.ProtoField;
+import org.infinispan.protostream.annotations.ProtoTypeId;
+import org.infinispan.util.concurrent.BlockingManager;
+import org.infinispan.util.concurrent.CompletableFutures;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.reactivestreams.Publisher;
+import redis.clients.jedis.util.SafeEncoder;
 
-import java.util.HashMap;
-import java.util.List;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
-import java.util.concurrent.Executor;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
-import net.jcip.annotations.ThreadSafe;
+import static org.infinispan.persistence.redis.compression.Util.getCompressor;
 
-@ThreadSafe
 @ConfiguredBy(RedisStoreConfiguration.class)
-final public class RedisStore implements AdvancedLoadWriteStore
-{
-    private static final Log log = LogFactory.getLog(RedisStore.class, Log.class);
+final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
+    private static final Log LOGGER = LogFactory.getLog(RedisStore.class, Log.class);
 
-    private InitializationContext ctx = null;
-    private RedisConnectionPool connectionPool = null;
+    private volatile RedisConnectionPool connectionPool = null;
 
-    /**
-     * Used to initialize a cache loader.  Typically invoked by the {@link org.infinispan.persistence.manager.PersistenceManager}
-     * when setting up cache loaders.
-     *
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     */
+    private BlockingManager blockingManager;
+    private MarshallableEntryFactory<K, V> entryFactory;
+    private KeyPartitioner keyPartitioner;
+    private TimeService timeService;
+    private String cacheName;
+    private Compressor compressor;
+    private RedisKeyHandler keyHandler;
+    private RedisStoreConfiguration.Compressor defaultCompressor;
+    private PersistenceMarshaller persistenceMarshaller;
+    private final Map<RedisStoreConfiguration.Compressor, Compressor> decompressors = Collections.synchronizedMap(
+            new EnumMap<>(RedisStoreConfiguration.Compressor.class));
+    private RedisStoreConfiguration redisStoreConfiguration;
+
     @Override
-    public void init(InitializationContext ctx)
-    {
-        RedisStore.log.info("Redis cache store initialising");
-        this.ctx = ctx;
+    public Set<Characteristic> characteristics() {
+        return EnumSet.of(Characteristic.BULK_READ, Characteristic.EXPIRATION, Characteristic.SHAREABLE);
     }
 
-    /**
-     * Invoked on component start
-     */
     @Override
-    public void start()
-    {
-        RedisStore.log.info("Redis cache store starting");
+    public CompletionStage<Void> start(InitializationContext ctx) {
+        redisStoreConfiguration = ctx.getConfiguration();
+        persistenceMarshaller = ctx.getPersistenceMarshaller();
 
-        try {
-            this.connectionPool = RedisConnectionPoolFactory.factory(this.ctx.getConfiguration(), this.ctx.getMarshaller());
-        }
-        catch(Exception ex) {
-            RedisStore.log.error("Failed to initialise the redis store", ex);
-            throw new PersistenceException(ex);
-        }
+        entryFactory = ctx.getMarshallableEntryFactory();
+        blockingManager = ctx.getBlockingManager();
+        keyPartitioner = ctx.getKeyPartitioner();
+        timeService = ctx.getTimeService();
+
+        TwoWayKey2StringMapper twoWayKey2StringMapper = getTwoWayMapper(ctx, persistenceMarshaller, redisStoreConfiguration);
+        String ctxCacheName = ctx.getCache().getName();
+
+        cacheName = ctxCacheName != null ? ctxCacheName : "";
+        compressor = getCompressor(redisStoreConfiguration, persistenceMarshaller);
+        defaultCompressor = redisStoreConfiguration.compressor();
+        keyHandler = cacheName.isEmpty() ? new KeyHandler(twoWayKey2StringMapper) : new KeyWithCacheNameHandler(cacheName,
+                                                                                                                twoWayKey2StringMapper);
+
+        ctx.getPersistenceMarshaller().register(new PersistenceContextInitializerImpl());
+
+        return blockingManager.runBlocking(() -> {
+            LOGGER.infof("Starting Redis store for cache '%s'", cacheName);
+
+            try {
+                connectionPool = RedisConnectionPoolFactory.factory(redisStoreConfiguration);
+            } catch (Exception ex) {
+                LOGGER.errorf(ex, "Failed to initialise the redis store for cache '%s'", cacheName);
+                throw new PersistenceException(ex);
+            }
+        }, "redis-start");
     }
 
-    /**
-     * Invoked on component stop
-     */
     @Override
-    public void stop()
-    {
-        RedisStore.log.info("Redis cache store stopping");
+    public CompletionStage<Void> stop() {
+        return blockingManager.runBlocking(() -> {
+            LOGGER.infof("Stopping Redis store for cache '%s'", cacheName);
 
-        if (null != this.connectionPool) {
-            this.connectionPool.shutdown();
-        }
+            if (null != connectionPool) {
+                connectionPool.shutdown();
+            }
+        }, "redis-stop");
     }
 
-    /**
-     * Iterates in parallel over the entries in the storage using the threads from the <b>executor</b> pool. For each
-     * entry the {@link CacheLoaderTask#processEntry(MarshalledEntry, TaskContext)} is
-     * invoked. Before passing an entry to the callback task, the entry should be validated against the <b>filter</b>.
-     * Implementors should build an {@link TaskContext} instance (implementation) that is fed to the {@link
-     * CacheLoaderTask} on every invocation. The {@link CacheLoaderTask} might invoke {@link
-     * org.infinispan.persistence.spi.AdvancedCacheLoader.TaskContext#stop()} at any time, so implementors of this method
-     * should verify TaskContext's state for early termination of iteration. The method should only return once the
-     * iteration is complete or as soon as possible in the case TaskContext.stop() is invoked.
-     *
-     * @param filter        to validate which entries should be feed into the task. Might be null.
-     * @param task          callback to be invoked in parallel for each stored entry that passes the filter check
-     * @param executor      an external thread pool to be used for parallel iteration
-     * @param fetchValue    whether or not to fetch the value from the persistent store. E.g. if the iteration is
-     *                      intended only over the key set, no point fetching the values from the persistent store as
-     *                      well
-     * @param fetchMetadata whether or not to fetch the metadata from the persistent store. E.g. if the iteration is
-     *                      intended only ove the key set, then no pint fetching the metadata from the persistent store
-     *                      as well
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     */
     @Override
-    public void process(
-        final KeyFilter filter,
-        final CacheLoaderTask task,
-        Executor executor,
-        boolean fetchValue,
-        boolean fetchMetadata
-    )
-    {
-        RedisStore.log.debug("Iterating Redis store entries");
+    public CompletionStage<MarshallableEntry<K, V>> load(int segment, Object key) {
+        return blockingManager.supplyBlocking(() -> {
+            RedisConnection connection = null;
 
-        final InitializationContext ctx = this.ctx;
-        final TaskContext taskContext = new TaskContextImpl();
-        final RedisConnectionPool connectionPool = this.connectionPool;
-        final RedisStore cacheStore = this;
+            try {
+                connection = connectionPool.getConnection();
+
+                byte[] keyBytes = keyHandler.marshallKey(segment, key);
+                byte[] value = connection.get(keyBytes);
+
+                if (null == value) {
+                    return null;
+                }
+
+                MarshallableEntry<K, V> entry = unmarshallEntry(key, value);
+
+                if (entry != null && entry.isExpired(timeService.wallClockTime())) {
+                    connection.delete(keyBytes);
+                    return null;
+                }
+
+                return entry;
+            } catch (Exception ex) {
+                LOGGER.errorf(ex, "Failed to load element from the redis store for cache '%s'", cacheName);
+                throw new PersistenceException(ex);
+            } finally {
+                if (null != connection) {
+                    connection.release();
+                }
+            }
+        }, "redis-load");
+    }
+
+    @Override
+    public CompletionStage<Void> write(int segment, MarshallableEntry<? extends K, ? extends V> entry) {
+        return blockingManager.runBlocking(() -> {
+            RedisConnection connection = null;
+
+            try {
+                long lifespan = -1;
+                byte[] marshalledKey = keyHandler.marshallKey(segment, entry.getKey());
+                byte[] marshalledValue = persistenceMarshaller.objectToByteBuffer(new Entry(marshall(entry.getMarshalledValue()),
+                                                                                            defaultCompressor));
+
+                Metadata metadata = entry.getMetadata();
+
+                if (null != metadata) {
+                    lifespan = metadata.lifespan();
+                    long maxIdle = metadata.maxIdle();
+                    if (lifespan > 0) {
+                        lifespan = toSeconds(lifespan, entry.getKey());
+                    } else if (maxIdle > 0) {
+                        lifespan = toSeconds(maxIdle, entry.getKey());
+                    }
+                }
+
+                connection = connectionPool.getConnection();
+                connection.set(marshalledKey, marshalledValue, lifespan);
+            } catch (Exception ex) {
+                LOGGER.errorf(ex, "Failed to write element to the redis store for cache '%s'", cacheName);
+                throw new PersistenceException(ex);
+            } finally {
+                if (null != connection) {
+                    connection.release();
+                }
+            }
+        }, "redis-write");
+    }
+
+    @Override
+    public CompletionStage<Boolean> delete(int segment, Object key) {
+        return blockingManager.supplyBlocking(() -> {
+            RedisConnection connection = null;
+            try {
+                connection = connectionPool.getConnection();
+                return connection.delete(keyHandler.marshallKey(segment, key));
+            } catch (Exception ex) {
+                LOGGER.errorf(ex, "Failed to delete element from the redis store for cache '%s'", cacheName);
+                throw new PersistenceException(ex);
+            } finally {
+                if (null != connection) {
+                    connection.release();
+                }
+            }
+        }, "redis-delete");
+    }
+
+    @Override
+    public CompletionStage<Void> clear() {
+        return blockingManager.runBlocking(() -> {
+            RedisConnection connection = null;
+            try {
+                connection = connectionPool.getConnection();
+                connection.flushDb();
+            } catch (Exception ex) {
+                LOGGER.errorf(ex, "Failed to clear all elements in the redis store for cache '%s'", cacheName);
+                throw new PersistenceException(ex);
+            } finally {
+                if (null != connection) {
+                    connection.release();
+                }
+            }
+        }, "redis-clear");
+    }
+
+    @Override
+    public CompletionStage<Boolean> containsKey(int segment, Object key) {
+        return blockingManager.supplyBlocking(() -> {
+            RedisConnection connection = null;
+
+            try {
+                connection = connectionPool.getConnection();
+                return connection.exists(keyHandler.marshallKey(segment, key));
+            } catch (Exception ex) {
+                LOGGER.errorf(ex, "Failed to discover if element is in the redis store for cache '%s'", cacheName);
+                throw new PersistenceException(ex);
+            } finally {
+                if (null != connection) {
+                    connection.release();
+                }
+            }
+        }, "redis-contains-key");
+    }
+
+
+    @Override
+    public CompletionStage<Long> size(IntSet segments) {
+        return blockingManager.supplyBlocking(() -> {
+            RedisConnection connection = null;
+            try {
+                connection = connectionPool.getConnection();
+                return connection.dbSize();
+            } catch (Exception ex) {
+                LOGGER.errorf(ex, "Failed to fetch element count from the redis store for cache '%s'", cacheName);
+                throw new PersistenceException(ex);
+            } finally {
+                if (null != connection) {
+                    connection.release();
+                }
+            }
+        }, "redis-size");
+    }
+
+    @Override
+    public CompletionStage<Long> approximateSize(IntSet segments) {
+        return size(segments);
+    }
+
+    @Override
+    public CompletionStage<Void> addSegments(IntSet segments) {
+        return CompletableFutures.completedNull();
+    }
+
+    @Override
+    public CompletionStage<Void> removeSegments(IntSet segments) {
+        if (segments == null) {
+            return clear();
+        }
+
+        return blockingManager.runBlocking(() -> {
+            RedisConnection connection = null;
+            try {
+                connection = connectionPool.getConnection();
+                for (byte[] keyBytes : connection.scan(cacheName)) {
+                    Object key = keyHandler.unmarshallKey(keyBytes);
+                    int segment = keyPartitioner.getSegment(key);
+                    if (segments.contains(segment)) {
+                        connection.delete(keyHandler.marshallKey(segment, key));
+                    }
+                }
+            } catch (Exception ex) {
+                LOGGER.errorf(ex, "Failed to remove segments from the redis store for cache '%s'", cacheName);
+                throw new PersistenceException(ex);
+            } finally {
+                if (null != connection) {
+                    connection.release();
+                }
+            }
+        }, "redis-remove-segments");
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Publisher<MarshallableEntry<K, V>> publishEntries(IntSet segments, Predicate<? super K> filter, boolean includeValues) {
+        Predicate<? super K> combinedFilter = PersistenceUtil.combinePredicate(segments, keyPartitioner, filter);
+
         RedisConnection connection = connectionPool.getConnection();
 
-        try {
-            for (Object key : connection.scan()) {
-                if (taskContext.isStopped()) {
-                    break;
-                }
+        return blockingManager.blockingPublisher(
+                Flowable.using(
+                        () -> connection.scan(cacheName),
+                        it -> Flowable.fromIterable(it)
+                                      .map(o -> keyHandler.unmarshallKey(o))
+                                      .filter(key -> combinedFilter == null || combinedFilter.test((K) key))
+                                      .flatMap(key -> Flowable.fromCompletionStage(load(-1, key)))
+                                      .filter(Objects::nonNull),
+                        it -> connection.release()
+                )
+        );
 
-                if (null != filter && ! filter.accept(key)) {
-                    continue;
-                }
-
-                executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            MarshalledEntry marshalledEntry;
-                            if (fetchValue) {
-                                marshalledEntry = cacheStore.load(key);
-                            }
-                            else {
-                                marshalledEntry = ctx.getMarshalledEntryFactory().newMarshalledEntry(
-                                    key, null, (ByteBuffer) null);
-                            }
-
-                            if (null != marshalledEntry) {
-                                task.processEntry(marshalledEntry, taskContext);
-                            }
-                        }
-                        catch (Exception ex) {
-                            RedisStore.log.error("Failed to process the redis store key", ex);
-                            throw new PersistenceException(ex);
-                        }
-                    }
-                });
-            }
-        }
-        catch(Exception ex) {
-            RedisStore.log.error("Failed to process the redis store keys", ex);
-            throw new PersistenceException(ex);
-        }
-        finally {
-            if (null != connection) {
-                connection.release();
-            }
-        }
     }
 
-    /**
-     * Using the thread in the pool, remove all the expired data from the persistence storage. For each removed entry,
-     * the supplied listener is invoked.
-     *
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     */
     @Override
-    public void purge(Executor executor, final PurgeListener purgeListener)
-    {
-        // Nothing to do. All expired entries are purged by Redis itself
+    public Publisher<MarshallableEntry<K, V>> purgeExpired() {
+        return Flowable.empty();
     }
 
-    /**
-     * Returns the number of elements in the store.
-     *
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     */
-    @Override
-    public int size()
-    {
-        RedisStore.log.debug("Calculating Redis store size");
-        RedisConnection connection = null;
-
-        try {
-            connection = this.connectionPool.getConnection();
-            long dbSize = connection.dbSize();
-
-            // Can't return more than Integer.MAX_VALUE due to interface limitation
-            // If the number of elements in redis is more than the int max size,
-            // log the anomaly and return the int max size
-            if (dbSize > Integer.MAX_VALUE) {
-                RedisStore.log.info(
-                    String.format("Redis store is holding more elements than we can count! " +
-                            "Total number of elements found %d. Limited to returning count as %d",
-                        dbSize, Integer.MAX_VALUE
-                    )
-                );
-
-                return Integer.MAX_VALUE;
-            }
-            else {
-                return (int) dbSize;
-            }
-        }
-        catch(Exception ex) {
-            RedisStore.log.error("Failed to fetch element count from the redis store", ex);
-            throw new PersistenceException(ex);
-        }
-        finally {
-            if (null != connection) {
-                connection.release();
-            }
-        }
-    }
-
-    /**
-     * Removes all the data from the storage.
-     *
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     */
-    @Override
-    public void clear()
-    {
-        RedisStore.log.debug("Clearing Redis store");
-        RedisConnection connection = null;
-
-        try {
-            connection = this.connectionPool.getConnection();
-            connection.flushDb();
-        }
-        catch(Exception ex) {
-            RedisStore.log.error("Failed to clear all elements in the redis store", ex);
-            throw new PersistenceException(ex);
-        }
-        finally {
-            if (null != connection) {
-                connection.release();
-            }
-        }
-    }
-
-    /**
-     * Fetches an entry from the storage. If a {@link MarshalledEntry} needs to be created here, {@link
-     * org.infinispan.persistence.spi.InitializationContext#getMarshalledEntryFactory()} and {@link
-     * InitializationContext#getByteBufferFactory()} should be used.
-     *
-     * @return the entry, or null if the entry does not exist
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     */
-    @Override
-    public MarshalledEntry load(Object key)
-    {
-        RedisStore.log.debug("Loading entry from Redis store");
-        RedisConnection connection = null;
-
-        try {
-            connection = this.connectionPool.getConnection();
-            List<byte[]> data = connection.hmget(key, "value", "metadata");
-            byte[] value = data.get(0);
-
-            if (null == value) {
-                return null;
-            }
-
-            ByteBuffer valueBuf = this.ctx.getByteBufferFactory().newByteBuffer(value, 0, value.length);
-            ByteBuffer metadataBuf = null;
-            byte[] metadata = data.get(1);
-
-            if (null != metadata) {
-                metadataBuf = this.ctx.getByteBufferFactory().newByteBuffer(metadata, 0, metadata.length);
-            }
-
-            return this.ctx.getMarshalledEntryFactory().newMarshalledEntry(key, valueBuf, metadataBuf);
-        }
-        catch(Exception ex) {
-            RedisStore.log.error("Failed to load element from the redis store", ex);
-            throw new PersistenceException(ex);
-        }
-        finally {
-            if (null != connection) {
-                connection.release();
-            }
-        }
-    }
-
-    /**
-     * Persists the entry to the storage.
-     *
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     * @see MarshalledEntry
-     */
-    @Override
-    public void write(MarshalledEntry marshalledEntry)
-    {
-        RedisStore.log.debug("Writing entry to Redis store");
-        RedisConnection connection = null;
-
-        try {
-            byte[] value;
-            byte[] metadata;
-            long lifespan = -1;
-            Map<String,byte[]> fields = new HashMap<>();
-
-            if (null != marshalledEntry.getValueBytes()) {
-                value = marshalledEntry.getValueBytes().getBuf();
-                fields.put("value", value);
-            }
-
-            if (null != marshalledEntry.getMetadataBytes()) {
-                metadata = marshalledEntry.getMetadataBytes().getBuf();
-                fields.put("metadata", metadata);
-                lifespan = marshalledEntry.getMetadata().lifespan();
-            }
-
-            connection = this.connectionPool.getConnection();
-            connection.hmset(marshalledEntry.getKey(), fields);
-
-            if (-1 < lifespan) {
-                connection.expire(marshalledEntry.getKey(), this.toSeconds(lifespan, marshalledEntry.getKey(), "lifespan"));
-            }
-        }
-        catch(Exception ex) {
-            RedisStore.log.error("Failed to write element to the redis store", ex);
-            throw new PersistenceException(ex);
-        }
-        finally {
-            if (null != connection) {
-                connection.release();
-            }
-        }
-    }
-
-    /**
-     * Delete the entry for the given key from the store
-     *
-     * @return true if the entry existed in the persistent store and it was deleted.
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     */
-    @Override
-    public boolean delete(Object key)
-    {
-        RedisStore.log.debug("Deleting entry from Redis store");
-        RedisConnection connection = null;
-
-        try {
-            connection = this.connectionPool.getConnection();
-            return connection.delete(key);
-        }
-        catch(Exception ex) {
-            RedisStore.log.error("Failed to delete element from the redis store", ex);
-            throw new PersistenceException(ex);
-        }
-        finally {
-            if (null != connection) {
-                connection.release();
-            }
-        }
-    }
-
-    /**
-     * Returns true if the storage contains an entry associated with the given key.
-     *
-     * @return True if the cache contains the key specified
-     * @throws PersistenceException in case of an error, e.g. communicating with the external storage
-     */
-    @Override
-    public boolean contains(Object key)
-    {
-        RedisStore.log.debug("Checking store for Redis entry");
-        RedisConnection connection = null;
-
-        try {
-            connection = this.connectionPool.getConnection();
-            return connection.exists(key);
-        }
-        catch(Exception ex) {
-            RedisStore.log.error("Failed to discover if element is in the redis store", ex);
-            throw new PersistenceException(ex);
-        }
-        finally {
-            if (null != connection) {
-                connection.release();
-            }
-        }
-    }
-
-    private int toSeconds(long millis, Object key, String desc)
-    {
+    private int toSeconds(long millis, Object key) {
         if (millis > 0 && millis < 1000) {
-            if (log.isTraceEnabled()) {
-                log.tracef("Adjusting %s time for (k,v): (%s, %s) from %d millis to 1 sec, as milliseconds are not supported by Redis",
-                    desc ,key, millis);
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.tracef(
+                        "Adjusting lifespan time for (k,v): (%s, %s) from %d millis to 1 sec, as milliseconds are not supported by Redis",
+                        key, millis);
             }
 
             return 1;
         }
 
         return (int) TimeUnit.MILLISECONDS.toSeconds(millis);
+    }
+
+    private byte[] marshall(Object entry) {
+        return compressor.compress(entry);
+    }
+
+    private <E> E unmarshall(byte[] bytes, Compressor compressor) {
+        return compressor.uncompress(bytes);
+    }
+
+    private MarshallableEntry<K, V> unmarshallEntry(Object key, byte[] valueBytes) {
+        try {
+            Entry entry = (Entry) persistenceMarshaller.objectFromByteBuffer(valueBytes);
+            Compressor decompressor = compressor;
+
+            if (entry.compressor != null && defaultCompressor != entry.compressor) {
+                decompressor = decompressors.computeIfAbsent(entry.compressor,
+                                                             ignored -> getCompressor(entry.compressor, redisStoreConfiguration,
+                                                                                      persistenceMarshaller));
+            }
+
+            MarshalledValue value = unmarshall(entry.marshalledValue, decompressor);
+
+            if (value == null) {
+                return null;
+            }
+
+            return entryFactory.create(key,
+                                       value.getValueBytes(),
+                                       value.getMetadataBytes(),
+                                       value.getInternalMetadataBytes(),
+                                       value.getCreated(),
+                                       value.getLastUsed());
+        } catch (IOException | ClassNotFoundException e) {
+            throw new PersistenceException(e);
+        }
+
+    }
+
+    private TwoWayKey2StringMapper getTwoWayMapper(InitializationContext ctx,
+                                                   PersistenceMarshaller persistenceMarshaller,
+                                                   RedisStoreConfiguration config) {
+        String mapperClass = config.key2StringMapper();
+        TwoWayKey2StringMapper twoWayKey2StringMapper = new DefaultTwoWayKey2StringMapper();
+        if (mapperClass != null) {
+            try {
+                twoWayKey2StringMapper = (TwoWayKey2StringMapper) Util.loadClass(mapperClass,
+                                                                                 ctx.getGlobalConfiguration()
+                                                                                    .classLoader()).newInstance();
+            } catch (InstantiationException | IllegalAccessException e) {
+                throw new IllegalStateException("This should not happen.", e);
+            }
+        }
+
+        if (twoWayKey2StringMapper instanceof MarshallingTwoWayKey2StringMapper) {
+            ((MarshallingTwoWayKey2StringMapper) twoWayKey2StringMapper).setMarshaller(persistenceMarshaller);
+        }
+
+        return twoWayKey2StringMapper;
+    }
+
+    @ProtoTypeId(7777)
+    static final class Entry {
+        @ProtoField(number = 1)
+        byte[] marshalledValue;
+
+        @ProtoField(number = 2)
+        RedisStoreConfiguration.Compressor compressor;
+
+        @ProtoFactory
+        Entry(byte[] marshalledValue, RedisStoreConfiguration.Compressor compressor) {
+            this.marshalledValue = marshalledValue;
+            this.compressor = compressor;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof Entry)) {
+                return false;
+            }
+            Entry entry = (Entry) o;
+            return Arrays.equals(marshalledValue, entry.marshalledValue) && compressor == entry.compressor;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(compressor);
+            result = 31 * result + Arrays.hashCode(marshalledValue);
+            return result;
+        }
+    }
+
+    private interface RedisKeyHandler {
+        byte[] marshallKey(int segment, Object key);
+
+        <E> E unmarshallKey(byte[] bytes);
+    }
+
+    private static class KeyWithCacheNameHandler implements RedisKeyHandler {
+        private final String cacheName;
+        private final TwoWayKey2StringMapper twoWayKey2StringMapper;
+
+        public KeyWithCacheNameHandler(String cacheName, TwoWayKey2StringMapper twoWayKey2StringMapper) {
+            this.cacheName = cacheName;
+            this.twoWayKey2StringMapper = twoWayKey2StringMapper;
+        }
+
+        @Override
+        public byte[] marshallKey(int segment, Object key) {
+            return SafeEncoder.encode(cacheName + "|" + twoWayKey2StringMapper.getStringMapping(key));
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <E> E unmarshallKey(byte[] bytes) {
+            String[] encodedKey = SafeEncoder.encode(bytes).split("\\|");
+            int keyPosition = encodedKey.length > 0 ? 1 : 0;
+            return (E) twoWayKey2StringMapper.getKeyMapping(encodedKey[keyPosition]);
+        }
+    }
+
+    private static class KeyHandler implements RedisKeyHandler {
+        private final TwoWayKey2StringMapper twoWayKey2StringMapper;
+
+        public KeyHandler(TwoWayKey2StringMapper twoWayKey2StringMapper) {
+            this.twoWayKey2StringMapper = twoWayKey2StringMapper;
+        }
+
+        @Override
+        public byte[] marshallKey(int segment, Object key) {
+            return SafeEncoder.encode(twoWayKey2StringMapper.getStringMapping(key));
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <E> E unmarshallKey(byte[] bytes) {
+            return (E) twoWayKey2StringMapper.getKeyMapping(SafeEncoder.encode(bytes));
+        }
     }
 }

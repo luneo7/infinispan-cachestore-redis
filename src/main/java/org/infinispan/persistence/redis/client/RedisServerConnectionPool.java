@@ -8,17 +8,15 @@ import org.infinispan.util.logging.LogFactory;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
+import java.time.Duration;
 import java.util.List;
 
-final public class RedisServerConnectionPool implements RedisConnectionPool
-{
-    private JedisPool connectionPool;
-    private RedisMarshaller<String> marshaller;
+final public class RedisServerConnectionPool implements RedisConnectionPool {
+    private final JedisPool connectionPool;
     private static final Log log = LogFactory.getLog(RedisServerConnectionPool.class, Log.class);
 
-    public RedisServerConnectionPool(RedisStoreConfiguration configuration, RedisMarshaller<String> marshaller)
-        throws RedisClientException
-    {
+    public RedisServerConnectionPool(RedisStoreConfiguration configuration)
+            throws RedisClientException {
         List<RedisServerConfiguration> servers = configuration.servers();
         RedisServerConfiguration server;
 
@@ -31,7 +29,7 @@ final public class RedisServerConnectionPool implements RedisConnectionPool
 
         if (servers.size() > 1) {
             RedisServerConnectionPool.log.warn(String.format("Multiple redis servers defined. Using the first only (%s:%d)",
-                server.host(), server.port()));
+                                                             server.host(), server.port()));
         }
 
         ConnectionPoolConfiguration connectionPoolConfiguration = configuration.connectionPool();
@@ -40,36 +38,32 @@ final public class RedisServerConnectionPool implements RedisConnectionPool
         poolConfig.setMaxTotal(connectionPoolConfiguration.maxTotal());
         poolConfig.setMinIdle(connectionPoolConfiguration.minIdle());
         poolConfig.setMaxIdle(connectionPoolConfiguration.maxIdle());
-        poolConfig.setMinEvictableIdleTimeMillis(connectionPoolConfiguration.minEvictableIdleTime());
-        poolConfig.setTimeBetweenEvictionRunsMillis(connectionPoolConfiguration.timeBetweenEvictionRuns());
+        poolConfig.setMinEvictableIdleTime(Duration.ofMillis(connectionPoolConfiguration.minEvictableIdleTime()));
+        poolConfig.setTimeBetweenEvictionRuns(Duration.ofMillis(connectionPoolConfiguration.timeBetweenEvictionRuns()));
         poolConfig.setTestOnCreate(connectionPoolConfiguration.testOnCreate());
         poolConfig.setTestOnBorrow(connectionPoolConfiguration.testOnBorrow());
         poolConfig.setTestOnReturn(connectionPoolConfiguration.testOnReturn());
         poolConfig.setTestWhileIdle(connectionPoolConfiguration.testOnIdle());
 
-        this.connectionPool = new JedisPool(
-            poolConfig,
-            server.host(),
-            server.port(),
-            configuration.connectionTimeout(),
-            configuration.socketTimeout(),
-            configuration.password(),
-            configuration.database(),
-            null
+        connectionPool = new JedisPool(
+                poolConfig,
+                server.host(),
+                server.port(),
+                configuration.connectionTimeout(),
+                configuration.socketTimeout(),
+                configuration.password(),
+                configuration.database(),
+                null
         );
-
-        this.marshaller = marshaller;
     }
 
     @Override
-    public RedisConnection getConnection()
-    {
-        return new RedisServerConnection(this.connectionPool.getResource(), this.marshaller);
+    public RedisConnection getConnection() {
+        return new RedisServerConnection(connectionPool.getResource());
     }
 
     @Override
-    public void shutdown()
-    {
-        this.connectionPool.destroy();
+    public void shutdown() {
+        connectionPool.destroy();
     }
 }

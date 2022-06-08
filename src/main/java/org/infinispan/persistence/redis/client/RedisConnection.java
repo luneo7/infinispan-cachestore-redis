@@ -1,41 +1,34 @@
 package org.infinispan.persistence.redis.client;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 public interface RedisConnection
 {
     /**
      * Redis scan command
      */
-    Iterable<Object> scan();
+    Iterable<byte[]> scan(String prefix);
 
     /**
      * Redis get command
      */
-    List<byte[]> hmget(Object key, String... field) throws IOException, InterruptedException, ClassNotFoundException;
+    byte[] get(byte[] key);
 
     /**
      * Redis set command
      */
 
-    void hmset(Object key, Map<String,byte[]> fields) throws IOException, InterruptedException;
-
-    /**
-     * Redis expire command
-     */
-    void expire(Object key, int expire);
+    void set(byte[] key, byte[] value, long ttl);
 
     /**
      * Redis del command
      */
-    boolean delete(Object key) throws IOException, InterruptedException;
+    boolean delete(byte[] key);
 
     /**
      * Redis exists command
      */
-    boolean exists(Object key) throws IOException, InterruptedException;
+    boolean exists(byte[] key);
 
     /**
      * Redis dbsize command
@@ -45,7 +38,7 @@ public interface RedisConnection
     /**
      * Redis flushdb command
      */
-    void flushDb() throws IOException, InterruptedException;
+    void flushDb();
 
     /**
      * Release the connection, returning the connection to the pool

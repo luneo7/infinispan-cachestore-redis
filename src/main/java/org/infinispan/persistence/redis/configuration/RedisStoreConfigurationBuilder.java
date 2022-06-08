@@ -3,104 +3,93 @@ package org.infinispan.persistence.redis.configuration;
 import org.infinispan.commons.CacheConfigurationException;
 import org.infinispan.configuration.cache.AbstractStoreConfigurationBuilder;
 import org.infinispan.configuration.cache.PersistenceConfigurationBuilder;
+import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Compressor;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Topology;
+
 import java.util.ArrayList;
 import java.util.List;
 
 final public class RedisStoreConfigurationBuilder
-    extends AbstractStoreConfigurationBuilder<RedisStoreConfiguration, RedisStoreConfigurationBuilder>
-    implements RedisStoreConfigurationChildBuilder<RedisStoreConfigurationBuilder>
-{
-    private List<RedisServerConfigurationBuilder> servers = new ArrayList<RedisServerConfigurationBuilder>();
-    private List<RedisSentinelConfigurationBuilder> sentinels = new ArrayList<RedisSentinelConfigurationBuilder>();
+        extends AbstractStoreConfigurationBuilder<RedisStoreConfiguration, RedisStoreConfigurationBuilder>
+        implements RedisStoreConfigurationChildBuilder<RedisStoreConfigurationBuilder> {
+    private final List<RedisServerConfigurationBuilder> servers = new ArrayList<>();
+    private final List<RedisSentinelConfigurationBuilder> sentinels = new ArrayList<>();
     private final ConnectionPoolConfigurationBuilder connectionPool;
 
-    public RedisStoreConfigurationBuilder(PersistenceConfigurationBuilder builder)
-    {
+    public RedisStoreConfigurationBuilder(PersistenceConfigurationBuilder builder) {
         super(builder, RedisStoreConfiguration.attributeDefinitionSet());
+        segmented(false);
         connectionPool = new ConnectionPoolConfigurationBuilder(this);
     }
 
     @Override
-    public RedisStoreConfigurationBuilder self()
-    {
+    public RedisStoreConfigurationBuilder self() {
         return this;
     }
 
     @Override
-    public RedisStoreConfigurationBuilder database(int database)
-    {
+    public RedisStoreConfigurationBuilder database(int database) {
         this.attributes.attribute(RedisStoreConfiguration.DATABASE).set(database);
         return this;
     }
 
     @Override
-    public RedisStoreConfigurationBuilder password(String password)
-    {
+    public RedisStoreConfigurationBuilder password(String password) {
         this.attributes.attribute(RedisStoreConfiguration.PASSWORD).set(password);
         return this;
     }
 
     @Override
-    public RedisStoreConfigurationBuilder topology(Topology topology)
-    {
+    public RedisStoreConfigurationBuilder topology(Topology topology) {
         this.attributes.attribute(RedisStoreConfiguration.TOPOLOGY).set(topology);
         return this;
     }
 
     @Override
-    public RedisStoreConfigurationBuilder connectionTimeout(int connectionTimeout)
-    {
+    public RedisStoreConfigurationBuilder connectionTimeout(int connectionTimeout) {
         attributes.attribute(RedisStoreConfiguration.CONNECTION_TIMEOUT).set(connectionTimeout);
         return this;
     }
 
     @Override
-    public RedisStoreConfigurationBuilder socketTimeout(int socketTimeout)
-    {
+    public RedisStoreConfigurationBuilder socketTimeout(int socketTimeout) {
         attributes.attribute(RedisStoreConfiguration.SOCKET_TIMEOUT).set(socketTimeout);
         return this;
     }
 
     @Override
-    public RedisStoreConfigurationBuilder masterName(String masterName)
-    {
+    public RedisStoreConfigurationBuilder masterName(String masterName) {
         attributes.attribute(RedisStoreConfiguration.MASTER_NAME).set(masterName);
         return this;
     }
 
     @Override
-    public RedisStoreConfigurationBuilder maxRedirections(int maxRedirections)
-    {
+    public RedisStoreConfigurationBuilder maxRedirections(int maxRedirections) {
         attributes.attribute(RedisStoreConfiguration.MAX_REDIRECTIONS).set(maxRedirections);
         return this;
     }
 
     @Override
-    public RedisServerConfigurationBuilder addServer()
-    {
+    public RedisServerConfigurationBuilder addServer() {
         RedisServerConfigurationBuilder builder = new RedisServerConfigurationBuilder(this);
         this.servers.add(builder);
         return builder;
     }
 
     @Override
-    public RedisSentinelConfigurationBuilder addSentinel()
-    {
+    public RedisSentinelConfigurationBuilder addSentinel() {
         RedisSentinelConfigurationBuilder builder = new RedisSentinelConfigurationBuilder(this);
         this.sentinels.add(builder);
         return builder;
     }
 
     @Override
-    public ConnectionPoolConfigurationBuilder connectionPool()
-    {
+    public ConnectionPoolConfigurationBuilder connectionPool() {
         return this.connectionPool;
     }
 
     @Override
-    public void validate()
-    {
+    public void validate() {
         super.validate();
 
         Topology topology = this.attributes.attribute(RedisStoreConfiguration.TOPOLOGY).get();
@@ -114,25 +103,48 @@ final public class RedisStoreConfigurationBuilder
         if (topology.equals(Topology.SENTINEL) && this.sentinels.size() == 0) {
             // One or more Sentinel servers are required
             throw new CacheConfigurationException("At least one sentinel-server must be defined " +
-                "when using a sentinel topology.");
+                                                          "when using a sentinel topology.");
         }
 
         if (topology.equals(Topology.CLUSTER) && this.servers.size() == 0) {
             // One or more Redis servers are required
             throw new CacheConfigurationException("One or more redis-server must be defined " +
-                "when using a cluster topology.");
+                                                          "when using a cluster topology.");
         }
 
         if (topology.equals(Topology.SERVER) && this.servers.size() == 0) {
             // A single Redis servers are required
             throw new CacheConfigurationException("A redis-server must be defined " +
-                "when using a server topology.");
+                                                          "when using a server topology.");
         }
     }
 
     @Override
-    public RedisStoreConfigurationBuilder read(RedisStoreConfiguration template)
-    {
+    public RedisStoreConfigurationBuilder compressor(Compressor compressor) {
+        attributes.attribute(RedisStoreConfiguration.COMPRESSOR).set(compressor);
+        return this;
+    }
+
+    @Override
+    public RedisStoreConfigurationBuilder compressionBlockSize(int compressionBlockSize) {
+        attributes.attribute(RedisStoreConfiguration.COMPRESSION_BLOCK_SIZE).set(compressionBlockSize);
+        return this;
+    }
+
+    @Override
+    public RedisStoreConfigurationBuilder compressionLevel(int compressionLevel) {
+        attributes.attribute(RedisStoreConfiguration.COMPRESSION_LEVEL).set(compressionLevel);
+        return this;
+    }
+
+    @Override
+    public RedisStoreConfigurationBuilder key2StringMapper(String key2StringMapper) {
+        attributes.attribute(RedisStoreConfiguration.KEY2STRING_MAPPER).set(key2StringMapper);
+        return this;
+    }
+
+    @Override
+    public RedisStoreConfigurationBuilder read(RedisStoreConfiguration template) {
         super.read(template);
         for (RedisServerConfiguration server : template.servers()) {
             this.addServer().host(server.host()).port(server.port());
@@ -146,8 +158,7 @@ final public class RedisStoreConfigurationBuilder
     }
 
     @Override
-    public RedisStoreConfiguration create()
-    {
+    public RedisStoreConfiguration create() {
         List<RedisServerConfiguration> redisServers = new ArrayList<RedisServerConfiguration>();
         for (RedisServerConfigurationBuilder server : servers) {
             redisServers.add(server.create());
@@ -161,6 +172,6 @@ final public class RedisStoreConfigurationBuilder
         attributes.attribute(RedisStoreConfiguration.SERVERS).set(redisServers);
         attributes.attribute(RedisStoreConfiguration.SENTINELS).set(redisSentinels);
 
-        return new RedisStoreConfiguration(this.attributes.protect(), this.async.create(), this.singletonStore.create(), this.connectionPool.create());
+        return new RedisStoreConfiguration(this.attributes.protect(), this.async.create(), this.connectionPool.create());
     }
 }

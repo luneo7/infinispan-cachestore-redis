@@ -1,77 +1,58 @@
 package org.infinispan.persistence.redis.client;
 
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.params.SetParams;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
-final public class RedisServerConnection implements RedisConnection
-{
-    private Jedis client;
-    private RedisMarshaller<String> marshaller;
+final public class RedisServerConnection implements RedisConnection {
+    private final Jedis client;
 
-    RedisServerConnection(Jedis client, RedisMarshaller<String> marshaller)
-    {
+    RedisServerConnection(Jedis client) {
         this.client = client;
-        this.marshaller = marshaller;
     }
 
     @Override
-    public void release()
-    {
-        this.client.close();
+    public void release() {
+        client.close();
     }
 
     @Override
-    public Iterable<Object> scan()
-    {
-        return new RedisServerScanIterable(this.client, this.marshaller);
+    public Iterable<byte[]> scan(String prefix) {
+        return new RedisServerScanIterable(client, prefix);
     }
 
     @Override
-    public List<byte[]> hmget(Object key, String... fields)
-        throws IOException, InterruptedException, ClassNotFoundException
-    {
-        return this.marshaller.decode(this.client.hmget(this.marshaller.marshall(key), fields));
+    public byte[] get(byte[] key) {
+        return client.get(key);
     }
 
     @Override
-    public void hmset(Object key, Map<String,byte[]> fields)
-        throws IOException, InterruptedException
-    {
-        this.client.hmset(this.marshaller.marshall(key), this.marshaller.encode(fields));
+    public void set(byte[] key, byte[] value, long ttl) {
+        if (ttl > 0) {
+            client.set(key, value, SetParams.setParams().ex(ttl));
+        } else {
+            client.set(key, value);
+        }
     }
 
     @Override
-    public void expire(Object key, int expire)
-    {
-        this.client.expire(this.marshaller.marshall(key), expire);
+    public boolean delete(byte[] key) {
+        return client.del(key) > 0;
     }
 
     @Override
-    public boolean delete(Object key)
-        throws IOException, InterruptedException
-    {
-        return this.client.del(this.marshaller.marshall(key)) > 0;
+    public boolean exists(byte[] key) {
+        return client.exists(key);
     }
 
     @Override
-    public boolean exists(Object key)
-        throws IOException, InterruptedException
-    {
-        return this.client.exists(this.marshaller.marshall(key));
+    public long dbSize() {
+        return client.dbSize();
     }
 
     @Override
-    public long dbSize()
-    {
-        return this.client.dbSize();
-    }
-
-    @Override
-    public void flushDb()
-    {
-        this.client.flushDB();
+    public void flushDb() {
+        client.flushDB();
     }
 }

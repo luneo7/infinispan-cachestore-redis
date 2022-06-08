@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" version="1.0"
-           targetNamespace="urn:infinispan:config:store:redis:8.0"
-           xmlns:tns="urn:infinispan:config:store:redis:8.0"
-           xmlns:config="urn:infinispan:config:8.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-    <xs:import namespace="urn:infinispan:config:8.0"
-               schemaLocation="http://www.infinispan.org/schemas/infinispan-config-8.0.xsd" />
+           targetNamespace="urn:infinispan:config:store:redis:13.0"
+           xmlns:tns="urn:infinispan:config:store:redis:13.0"
+           xmlns:config="urn:infinispan:config:13.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="urn:infinispan:config:13.0"
+               schemaLocation="https://infinispan.org/schemas/infinispan-config-13.0.xsd" />
 
     <xs:element name="redis-store" type="tns:redis-store"/>
 
@@ -89,8 +89,57 @@
                         </xs:documentation>
                     </xs:annotation>
                 </xs:attribute>
+
+                <xs:attribute name="compressor" type="tns:compressor" default="lz4">
+                    <xs:annotation>
+                        <xs:documentation>
+                            Compression codec to be used. Valid options are brotli, gzip, lz4, lzf, none, snappy, zstd.
+                            Defaults to lz4.
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+
+                <xs:attribute name="compression-block-size" type="xs:int" default="32768" use="optional">
+                    <xs:annotation>
+                        <xs:documentation>
+                            Compression block size in bytes.
+                            Defaults to 32768
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+
+                <xs:attribute name="compression-level" type="xs:int" default="1" use="optional">
+                    <xs:annotation>
+                        <xs:documentation>
+                            Compression level.
+                            Defaults to 4
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+
+                <xs:attribute name="key-to-string-mapper" type="xs:string" default="org.infinispan.persistence.redis.keymapper.DefaultTwoWayKey2StringMapper" use="optional">
+                    <xs:annotation>
+                        <xs:documentation>
+                            The class name of a org.infinispan.persistence.keymappers.Key2StringMapper to use for mapping keys to strings suitable for storage in a database table.
+                            Defaults to org.infinispan.persistence.redis.keymapper.DefaultTwoWayKey2StringMapper
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+
             </xs:extension>
         </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="compressor">
+        <xs:choice minOccurs="0" maxOccurs="1">
+            <xs:element name="brotli" type="xs:string"/>
+            <xs:element name="gzip" type="xs:string"/>
+            <xs:element name="lz4" type="xs:string"/>
+            <xs:element name="lzf" type="xs:string"/>
+            <xs:element name="none" type="xs:string"/>
+            <xs:element name="snappy" type="xs:string"/>
+            <xs:element name="zstd" type="xs:string"/>
+        </xs:choice>
     </xs:complexType>
     
     <xs:complexType name="topology">

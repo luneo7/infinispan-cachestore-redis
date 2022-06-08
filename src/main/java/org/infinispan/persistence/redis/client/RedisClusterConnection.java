@@ -1,87 +1,61 @@
 package org.infinispan.persistence.redis.client;
 
+import redis.clients.jedis.ConnectionPool;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
-import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.params.SetParams;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-final public class RedisClusterConnection implements RedisConnection
-{
-    private JedisCluster cluster;
-    private RedisMarshaller<String> marshaller;
+final public class RedisClusterConnection implements RedisConnection {
+    private final JedisCluster cluster;
 
-    RedisClusterConnection(JedisCluster cluster, RedisMarshaller<String> marshaller)
-    {
+    RedisClusterConnection(JedisCluster cluster) {
         this.cluster = cluster;
-        this.marshaller = marshaller;
     }
 
     @Override
-    public void release()
-    {
+    public void release() {
         // Nothing to do. Connection pools are managed internally by the cluster client.
     }
 
     @Override
-    public Iterable<Object> scan()
-    {
-        return new RedisClusterNodeIterable(this.cluster, marshaller);
+    public Iterable<byte[]> scan(String prefix) {
+        return new RedisClusterNodeIterable(cluster, prefix);
     }
 
     @Override
-    public List<byte[]> hmget(Object key, String... field)
-        throws IOException, InterruptedException, ClassNotFoundException
-    {
-        return this.marshaller.decode(this.cluster.hmget(this.marshaller.marshall(key), field));
+    public byte[] get(byte[] key) {
+        return cluster.get(key);
     }
 
     @Override
-    public void hmset(Object key, Map<String,byte[]> fields)
-        throws IOException, InterruptedException
-    {
-        this.cluster.hmset(this.marshaller.marshall(key), this.marshaller.encode(fields));
+    public void set(byte[] key, byte[] value, long ttl) {
+        if (ttl > 0) {
+            cluster.set(key, value, SetParams.setParams().ex(ttl));
+        } else {
+            cluster.set(key, value);
+        }
     }
 
     @Override
-    public void expire(Object key, int expire)
-    {
-        this.cluster.expire(this.marshaller.marshall(key), expire);
+    public boolean delete(byte[] key) {
+        return cluster.del(key) > 0;
     }
 
     @Override
-    public boolean delete(Object key)
-        throws IOException, InterruptedException
-    {
-        return this.cluster.del(this.marshaller.marshall(key)) > 0;
+    public boolean exists(byte[] key) {
+        return cluster.exists(key);
     }
 
     @Override
-    public boolean exists(Object key)
-        throws IOException, InterruptedException
-    {
-        return this.cluster.exists(this.marshaller.marshall(key));
-    }
-
-    @Override
-    public long dbSize()
-    {
+    public long dbSize() {
         long totalSize = 0;
-        Jedis client = null;
-
-        Map<String, JedisPool> clusterNodes = this.cluster.getClusterNodes();
+        Map<String, ConnectionPool> clusterNodes = cluster.getClusterNodes();
         for (String nodeKey : clusterNodes.keySet()) {
-            try {
-                client = clusterNodes.get(nodeKey).getResource();
+            try (Jedis client = new Jedis(clusterNodes.get(nodeKey).getResource())) {
                 totalSize += client.dbSize();
-            }
-            finally {
-                if (null != client) {
-                    client.close();
-                    client = null;
-                }
             }
         }
 
@@ -89,22 +63,11 @@ final public class RedisClusterConnection implements RedisConnection
     }
 
     @Override
-    public void flushDb()
-        throws IOException, InterruptedException
-    {
-        Jedis client = null;
-
-        Map<String, JedisPool> clusterNodes = this.cluster.getClusterNodes();
+    public void flushDb() {
+        Map<String, ConnectionPool> clusterNodes = cluster.getClusterNodes();
         for (String nodeKey : clusterNodes.keySet()) {
-            try {
-                client = clusterNodes.get(nodeKey).getResource();
+            try (Jedis client = new Jedis(clusterNodes.get(nodeKey).getResource())) {
                 client.flushDB();
-            }
-            finally {
-                if (null != client) {
-                    client.close();
-                    client = null;
-                }
             }
         }
     }

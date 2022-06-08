@@ -1,60 +1,55 @@
 package org.infinispan.persistence.redis.client;
 
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.ScanResult;
+import redis.clients.jedis.params.ScanParams;
+import redis.clients.jedis.resps.ScanResult;
 
 import java.util.Iterator;
 import java.util.List;
 
-final public class RedisServerKeyIterator implements Iterator<Object>
-{
-    private Jedis client;
-    private RedisMarshaller<String> marshaller;
-    private ScanResult<String> scanCursor;
-    private List<String> keyResults;
-    private int position = 0;
+final public class RedisServerKeyIterator implements Iterator<byte[]> {
+    private static final int SCAN_COUNT_SIZE = 100;
 
-    public RedisServerKeyIterator(Jedis client, RedisMarshaller<String> marshaller)
-    {
+    private final Jedis client;
+    private ScanResult<byte[]> scanCursor;
+    private List<byte[]> keyResults;
+    private int position = 0;
+    private final ScanParams scanParams;
+
+
+    public RedisServerKeyIterator(Jedis client, String prefix) {
         this.client = client;
-        this.marshaller = marshaller;
-        this.scanCursor = client.scan("0");
-        this.keyResults = this.scanCursor.getResult();
+        scanParams = new ScanParams().count(SCAN_COUNT_SIZE).match(prefix + "*");
+        scanCursor = client.scan(ScanParams.SCAN_POINTER_START_BINARY, scanParams);
+        keyResults = scanCursor.getResult();
     }
 
-    public void release()
-    {
-        this.client.close();
+    public void release() {
+        client.close();
     }
 
     @Override
-    public boolean hasNext()
-    {
-        if (this.position < this.keyResults.size()) {
+    public boolean hasNext() {
+        if (position < keyResults.size()) {
             return true;
-        }
-        else if ( ! this.scanCursor.getStringCursor().equals("0")) {
-            this.scanCursor = this.client.scan(this.scanCursor.getStringCursor());
-            this.keyResults = this.scanCursor.getResult();
-            this.position = 0;
+        } else if (!scanCursor.getCursor().equals("0")) {
+            scanCursor = client.scan(scanCursor.getCursorAsBytes(), scanParams);
+            keyResults = scanCursor.getResult();
+            position = 0;
 
-            if (this.keyResults.size() > 0) {
-                return true;
-            }
+            return keyResults.size() > 0;
         }
 
         return false;
     }
 
     @Override
-    public Object next()
-    {
-        return this.marshaller.unmarshall(this.keyResults.get(this.position++));
+    public byte[] next() {
+        return keyResults.get(position++);
     }
 
     @Override
-    public void remove()
-    {
+    public void remove() {
         throw new UnsupportedOperationException();
     }
 }

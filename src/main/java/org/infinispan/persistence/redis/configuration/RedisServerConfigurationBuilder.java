@@ -9,7 +9,7 @@ final public class RedisServerConfigurationBuilder extends AbstractRedisStoreCon
     private String host;
     private int port = 6379;
 
-    protected RedisServerConfigurationBuilder(RedisStoreConfigurationBuilder builder)
+    RedisServerConfigurationBuilder(RedisStoreConfigurationBuilder builder)
     {
         super(builder);
     }
@@ -47,8 +47,8 @@ final public class RedisServerConfigurationBuilder extends AbstractRedisStoreCon
     @Override
     public Builder<?> read(RedisServerConfiguration template)
     {
-        this.host = template.host();
-        this.port = template.port();
+        host = template.host();
+        port = template.port();
 
         return this;
     }
