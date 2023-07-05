@@ -1,6 +1,7 @@
 package org.infinispan.persistence.redis.configuration;
 
 import org.infinispan.commons.configuration.Builder;
+import org.infinispan.commons.configuration.attributes.AttributeSet;
 import org.infinispan.configuration.global.GlobalConfiguration;
 
 final public class RedisServerConfigurationBuilder extends AbstractRedisStoreConfigurationChildBuilder<RedisStoreConfigurationBuilder> implements
@@ -51,5 +52,11 @@ final public class RedisServerConfigurationBuilder extends AbstractRedisStoreCon
         port = template.port();
 
         return this;
+    }
+
+
+    @Override
+    public AttributeSet attributes() {
+        return AttributeSet.EMPTY;
     }
 }

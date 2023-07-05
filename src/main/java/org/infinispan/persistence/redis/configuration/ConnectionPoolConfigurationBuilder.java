@@ -1,6 +1,7 @@
 package org.infinispan.persistence.redis.configuration;
 
 import org.infinispan.commons.configuration.Builder;
+import org.infinispan.commons.configuration.attributes.AttributeSet;
 import org.infinispan.configuration.global.GlobalConfiguration;
 
 final public class ConnectionPoolConfigurationBuilder extends AbstractRedisStoreConfigurationChildBuilder<RedisStoreConfigurationBuilder> implements
@@ -136,5 +137,10 @@ final public class ConnectionPoolConfigurationBuilder extends AbstractRedisStore
         testOnReturn = template.testOnReturn();
         testOnIdle = template.testOnIdle();
         return this;
+    }
+
+    @Override
+    public AttributeSet attributes() {
+        return AttributeSet.EMPTY;
     }
 }

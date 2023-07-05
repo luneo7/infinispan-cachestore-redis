@@ -2,25 +2,18 @@ package org.infinispan.persistence.redis;
 
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
-import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.persistence.BaseNonBlockingStoreTest;
-import org.infinispan.persistence.BaseStoreTest;
+import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Topology;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfigurationBuilder;
 import org.infinispan.persistence.redis.support.RedisCluster;
-import org.infinispan.persistence.spi.AdvancedLoadWriteStore;
 import org.infinispan.persistence.spi.NonBlockingStore;
 import org.infinispan.persistence.spi.PersistenceException;
-import org.infinispan.test.TestingUtil;
 import org.infinispan.test.fwk.TestCacheManagerFactory;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
-import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Topology;
-
-import static org.testng.AssertJUnit.assertNull;
-import static org.testng.AssertJUnit.assertTrue;
 
 @Test(testName = "persistence.redis.RedisClusterStoreTest", groups = "functional")
 public class RedisClusterStoreTest extends BaseNonBlockingStoreTest
