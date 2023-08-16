@@ -1,6 +1,7 @@
 package org.infinispan.persistence.redis.configuration;
 
 import org.infinispan.commons.configuration.Builder;
+import org.infinispan.commons.configuration.Combine;
 import org.infinispan.commons.configuration.attributes.AttributeSet;
 import org.infinispan.configuration.global.GlobalConfiguration;
 
@@ -46,7 +47,7 @@ final public class RedisServerConfigurationBuilder extends AbstractRedisStoreCon
     }
 
     @Override
-    public Builder<?> read(RedisServerConfiguration template)
+    public Builder<?> read(RedisServerConfiguration template, Combine combine)
     {
         host = template.host();
         port = template.port();

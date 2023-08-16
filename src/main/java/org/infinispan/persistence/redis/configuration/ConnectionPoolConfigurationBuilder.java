@@ -1,6 +1,7 @@
 package org.infinispan.persistence.redis.configuration;
 
 import org.infinispan.commons.configuration.Builder;
+import org.infinispan.commons.configuration.Combine;
 import org.infinispan.commons.configuration.attributes.AttributeSet;
 import org.infinispan.configuration.global.GlobalConfiguration;
 
@@ -125,7 +126,7 @@ final public class ConnectionPoolConfigurationBuilder extends AbstractRedisStore
     }
 
     @Override
-    public Builder<?> read(ConnectionPoolConfiguration template)
+    public Builder<?> read(ConnectionPoolConfiguration template, Combine combine)
     {
         maxTotal = template.maxTotal();
         maxIdle = template.maxIdle();

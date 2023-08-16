@@ -1,6 +1,7 @@
 package org.infinispan.persistence.redis.configuration;
 
 import org.infinispan.commons.CacheConfigurationException;
+import org.infinispan.commons.configuration.Combine;
 import org.infinispan.configuration.cache.AbstractStoreConfigurationBuilder;
 import org.infinispan.configuration.cache.PersistenceConfigurationBuilder;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration.Compressor;
@@ -144,8 +145,8 @@ final public class RedisStoreConfigurationBuilder
     }
 
     @Override
-    public RedisStoreConfigurationBuilder read(RedisStoreConfiguration template) {
-        super.read(template);
+    public RedisStoreConfigurationBuilder read(RedisStoreConfiguration template, Combine combine) {
+        super.read(template, combine);
         for (RedisServerConfiguration server : template.servers()) {
             this.addServer().host(server.host()).port(server.port());
         }
