@@ -5,7 +5,7 @@
 
     <groupId>io.github.luneo7</groupId>
     <artifactId>infinispan-cachestore-redis</artifactId>
-    <version>14.0.17.Final</version>
+    <version>14.0.17.1.Final</version>
     <packaging>bundle</packaging>
 
     <name>Infinispan Redis CacheStore</name>
@@ -273,7 +273,7 @@
         <dependency>
             <groupId>redis.clients</groupId>
             <artifactId>jedis</artifactId>
-            <version>5.0.0</version>
+            <version>5.0.2</version>
         </dependency>
 
         <dependency>
@@ -335,7 +335,7 @@
         <dependency>
             <groupId>com.github.luben</groupId>
             <artifactId>zstd-jni</artifactId>
-            <version>1.5.5-5</version>
+            <version>1.5.5-6</version>
         </dependency>
 
         <dependency>
@@ -347,7 +347,7 @@
         <dependency>
             <groupId>org.xerial.snappy</groupId>
             <artifactId>snappy-java</artifactId>
-            <version>1.1.10.3</version>
+            <version>1.1.10.5</version>
         </dependency>
 
         <dependency>
