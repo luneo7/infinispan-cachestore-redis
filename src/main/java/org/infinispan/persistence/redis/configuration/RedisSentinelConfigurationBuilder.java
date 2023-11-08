@@ -10,6 +10,7 @@ public class RedisSentinelConfigurationBuilder extends AbstractRedisStoreConfigu
 {
     private String host;
     private int port = 26379;
+    private boolean ssl = false;
 
     protected RedisSentinelConfigurationBuilder(RedisStoreConfigurationBuilder builder)
     {
@@ -28,6 +29,12 @@ public class RedisSentinelConfigurationBuilder extends AbstractRedisStoreConfigu
         return this;
     }
 
+    public RedisSentinelConfigurationBuilder ssl(boolean ssl)
+    {
+        this.ssl = ssl;
+        return this;
+    }
+
     @Override
     public void validate()
     {
@@ -43,7 +50,7 @@ public class RedisSentinelConfigurationBuilder extends AbstractRedisStoreConfigu
     @Override
     public RedisServerConfiguration create()
     {
-        return new RedisServerConfiguration(host, port);
+        return new RedisServerConfiguration(host, port, ssl);
     }
 
     @Override
@@ -51,6 +58,7 @@ public class RedisSentinelConfigurationBuilder extends AbstractRedisStoreConfigu
     {
         host = template.host();
         port = template.port();
+        ssl = template.ssl();
 
         return this;
     }

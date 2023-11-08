@@ -20,7 +20,7 @@ final public class RedisServerConnectionPool implements RedisConnectionPool {
         List<RedisServerConfiguration> servers = configuration.servers();
         RedisServerConfiguration server;
 
-        if (servers.size() == 0) {
+        if (servers.isEmpty()) {
             RedisServerConnectionPool.log.error("No redis servers defined");
             throw new RedisClientException();
         }
@@ -29,7 +29,7 @@ final public class RedisServerConnectionPool implements RedisConnectionPool {
 
         if (servers.size() > 1) {
             RedisServerConnectionPool.log.warn(String.format("Multiple redis servers defined. Using the first only (%s:%d)",
-                                                             server.host(), server.port()));
+                    server.host(), server.port()));
         }
 
         ConnectionPoolConfiguration connectionPoolConfiguration = configuration.connectionPool();
@@ -53,7 +53,8 @@ final public class RedisServerConnectionPool implements RedisConnectionPool {
                 configuration.socketTimeout(),
                 configuration.password(),
                 configuration.database(),
-                null
+                null,
+                server.ssl()
         );
     }
 
