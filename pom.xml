@@ -5,7 +5,7 @@
 
     <groupId>io.github.luneo7</groupId>
     <artifactId>infinispan-cachestore-redis</artifactId>
-    <version>14.0.17.1.Final</version>
+    <version>14.0.19.Final</version>
     <packaging>bundle</packaging>
 
     <name>Infinispan Redis CacheStore</name>
