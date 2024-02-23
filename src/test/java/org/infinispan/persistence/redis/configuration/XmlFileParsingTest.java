@@ -23,7 +23,7 @@ public class XmlFileParsingTest extends AbstractInfinispanTest
             "<cache-container default-cache=\"default\">" +
             "   <local-cache name=\"default\">\n" +
             "     <persistence>\n" +
-            "       <redis-store xmlns=\"urn:infinispan:config:store:redis:"+ Version.getMajorMinor() +"\" >\n" +
+            "       <redis-store xmlns=\"urn:infinispan:config:store:redis:"+ Version.getMajorMinor() +"\" ssl=\"true\" >\n" +
             "         <redis-server host=\"one\" />\n" +
             "         <redis-server host=\"two\" />\n" +
             "       </redis-store>\n" +
@@ -32,6 +32,7 @@ public class XmlFileParsingTest extends AbstractInfinispanTest
             "</cache-container>");
 
         RedisStoreConfiguration store = (RedisStoreConfiguration) buildCacheManagerWithCacheStore(config);
+        assert store.ssl();
         assert store.servers().size() == 2;
     }
 

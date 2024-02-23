@@ -19,12 +19,14 @@ public class ConfigurationTest
 
         Configuration configuration = b.build();
         RedisStoreConfiguration store = (RedisStoreConfiguration) configuration.persistence().stores().get(0);
+        assert !store.ssl();
         assert store.servers().size() == 2;
 
         b = new ConfigurationBuilder();
-        b.persistence().addStore(RedisStoreConfigurationBuilder.class).read(store);
+        b.persistence().addStore(RedisStoreConfigurationBuilder.class).ssl(true).read(store);
         Configuration configuration2 = b.build();
         RedisStoreConfiguration store2 = (RedisStoreConfiguration) configuration2.persistence().stores().get(0);
+        assert store2.ssl();
         assert store2.servers().size() == 2;
     }
 }

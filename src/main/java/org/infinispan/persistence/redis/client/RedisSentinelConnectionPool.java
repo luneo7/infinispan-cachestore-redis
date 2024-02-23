@@ -3,6 +3,8 @@ package org.infinispan.persistence.redis.client;
 import org.infinispan.persistence.redis.configuration.ConnectionPoolConfiguration;
 import org.infinispan.persistence.redis.configuration.RedisServerConfiguration;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration;
+import redis.clients.jedis.DefaultJedisClientConfig;
+import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.JedisSentinelPool;
 
@@ -14,9 +16,11 @@ final public class RedisSentinelConnectionPool implements RedisConnectionPool {
     private final JedisSentinelPool sentinelPool;
 
     public RedisSentinelConnectionPool(RedisStoreConfiguration configuration) {
-        Set<String> sentinels = new HashSet<String>();
+        boolean ssl = configuration.ssl();
+        Set<HostAndPort> sentinels = new HashSet<HostAndPort>();
+
         for (RedisServerConfiguration server : configuration.sentinels()) {
-            sentinels.add(String.format("%s:%s", server.host(), server.port()));
+            sentinels.add(new HostAndPort(server.host(), server.port()));
         }
 
         ConnectionPoolConfiguration connectionPoolConfiguration = configuration.connectionPool();
@@ -32,15 +36,24 @@ final public class RedisSentinelConnectionPool implements RedisConnectionPool {
         poolConfig.setTestOnReturn(connectionPoolConfiguration.testOnReturn());
         poolConfig.setTestWhileIdle(connectionPoolConfiguration.testOnIdle());
 
+        DefaultJedisClientConfig masterConfig = DefaultJedisClientConfig.builder()
+                                                                        .connectionTimeoutMillis(configuration.connectionTimeout())
+                                                                        .socketTimeoutMillis(configuration.socketTimeout())
+                                                                        .password(configuration.password())
+                                                                        .database(configuration.database())
+                                                                        .ssl(ssl)
+                                                                        .build();
+
+        DefaultJedisClientConfig sentinelConfig = DefaultJedisClientConfig.builder()
+                                                                          .ssl(ssl)
+                                                                          .build();
+
         sentinelPool = new JedisSentinelPool(
                 configuration.masterName(),
                 sentinels,
                 poolConfig,
-                configuration.connectionTimeout(),
-                configuration.socketTimeout(),
-                configuration.password(),
-                configuration.database(),
-                null
+                masterConfig,
+                sentinelConfig
         );
     }
 

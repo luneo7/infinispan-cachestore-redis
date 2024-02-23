@@ -79,4 +79,9 @@ public interface RedisStoreConfigurationChildBuilder<S> extends StoreConfigurati
      * storage in a database table. Defaults to {@link DefaultTwoWayKey2StringMapper}
      */
     RedisStoreConfigurationBuilder key2StringMapper(String key2StringMapper);
+
+    /**
+     * If Redis is using SSL
+     */
+    RedisStoreConfigurationBuilder ssl(boolean ssl);
 }

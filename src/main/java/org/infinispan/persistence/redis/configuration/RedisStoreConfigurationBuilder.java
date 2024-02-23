@@ -145,6 +145,12 @@ final public class RedisStoreConfigurationBuilder
     }
 
     @Override
+    public RedisStoreConfigurationBuilder ssl(boolean ssl) {
+        attributes.attribute(RedisStoreConfiguration.SSL).set(ssl);
+        return this;
+    }
+
+    @Override
     public RedisStoreConfigurationBuilder read(RedisStoreConfiguration template, Combine combine) {
         super.read(template, combine);
         for (RedisServerConfiguration server : template.servers()) {

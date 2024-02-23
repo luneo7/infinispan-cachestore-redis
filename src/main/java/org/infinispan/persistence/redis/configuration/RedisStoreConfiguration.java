@@ -44,6 +44,7 @@ final public class RedisStoreConfiguration extends AbstractStoreConfiguration {
     static final AttributeDefinition<Integer> CONNECTION_TIMEOUT = AttributeDefinition.builder("connectionTimeout", 2000).build();
     static final AttributeDefinition<Integer> SOCKET_TIMEOUT = AttributeDefinition.builder("socketTimeout", 2000).build();
     static final AttributeDefinition<String> MASTER_NAME = AttributeDefinition.builder("masterName", null, String.class).build();
+    static final AttributeDefinition<Boolean> SSL = AttributeDefinition.builder("ssl", false, Boolean.class).build();
     static final AttributeDefinition<String> PASSWORD = AttributeDefinition.builder("password", null, String.class).build();
     static final AttributeDefinition<Integer> DATABASE = AttributeDefinition.builder("database", 0).build();
     static final AttributeDefinition<Integer> MAX_REDIRECTIONS = AttributeDefinition.builder("maxRedirections", 5).build();
@@ -72,7 +73,7 @@ final public class RedisStoreConfiguration extends AbstractStoreConfiguration {
     public static AttributeSet attributeDefinitionSet() {
         return new AttributeSet(RedisStoreConfiguration.class, AbstractStoreConfiguration.attributeDefinitionSet(),
                                 PASSWORD, DATABASE, SERVERS, SENTINELS, TOPOLOGY, COMPRESSOR, COMPRESSION_BLOCK_SIZE, COMPRESSION_LEVEL,
-                                CONNECTION_TIMEOUT, SOCKET_TIMEOUT, MASTER_NAME, MAX_REDIRECTIONS, KEY2STRING_MAPPER);
+                                CONNECTION_TIMEOUT, SOCKET_TIMEOUT, MASTER_NAME, MAX_REDIRECTIONS, KEY2STRING_MAPPER, SSL);
     }
 
     private final ConnectionPoolConfiguration connectionPool;
@@ -89,6 +90,8 @@ final public class RedisStoreConfiguration extends AbstractStoreConfiguration {
     private final Attribute<Integer> compressionLevel;
     private final Attribute<Integer> compressionBlockSize;
     private final Attribute<String> key2StringMapper;
+
+    private final Attribute<Boolean> ssl;
 
     public RedisStoreConfiguration(
             AttributeSet attributes,
@@ -110,6 +113,7 @@ final public class RedisStoreConfiguration extends AbstractStoreConfiguration {
         compressionBlockSize = attributes.attribute(COMPRESSION_BLOCK_SIZE);
         compressionLevel = attributes.attribute(COMPRESSION_LEVEL);
         key2StringMapper = attributes.attribute(KEY2STRING_MAPPER);
+        ssl = attributes.attribute(SSL);
     }
 
     public List<RedisServerConfiguration> servers() {
@@ -166,5 +170,9 @@ final public class RedisStoreConfiguration extends AbstractStoreConfiguration {
 
     public String key2StringMapper() {
         return key2StringMapper.get();
+    }
+
+    public boolean ssl() {
+        return ssl.get();
     }
 }

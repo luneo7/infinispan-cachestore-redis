@@ -235,6 +235,11 @@ final public class RedisStoreConfigurationParser implements ConfigurationParser 
                     break;
                 }
 
+                case SSL: {
+                    builder.ssl(Boolean.parseBoolean(value));
+                    break;
+                }
+
                 default: {
                     CacheParser.parseStoreAttribute(reader, i, builder);
                 }

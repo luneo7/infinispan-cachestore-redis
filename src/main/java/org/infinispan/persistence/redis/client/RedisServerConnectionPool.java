@@ -53,7 +53,8 @@ final public class RedisServerConnectionPool implements RedisConnectionPool {
                 configuration.socketTimeout(),
                 configuration.password(),
                 configuration.database(),
-                null
+                null,
+                configuration.ssl()
         );
     }
 

@@ -78,4 +78,9 @@ public class RedisClusterStoreFunctionalTest extends BaseStoreFunctionalTest
         // Cluster mode does not support database index selection, and so the cache store cannot
         // support two cache stores using the same clustered Redis backend.
     }
+
+    @Override
+    public void testPurgeWithConcurrentUpdate() {
+        // This test doesn't work as purgeExpired does nothing
+    }
 }

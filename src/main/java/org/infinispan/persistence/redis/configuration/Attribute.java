@@ -28,7 +28,8 @@ public enum Attribute {
     COMPRESSOR("compressor"),
     COMPRESSION_BLOCK_SIZE("compression-block-size"),
     COMPRESSION_LEVEL("compression-level"),
-    KEY_TO_STRING_MAPPER("key-to-string-mapper");
+    KEY_TO_STRING_MAPPER("key-to-string-mapper"),
+    SSL("ssl");
 
     private final String name;
 

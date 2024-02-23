@@ -5,6 +5,7 @@ import org.infinispan.persistence.redis.configuration.ConnectionPoolConfiguratio
 import org.infinispan.persistence.redis.configuration.RedisServerConfiguration;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration;
 import redis.clients.jedis.Connection;
+import redis.clients.jedis.DefaultJedisClientConfig;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisCluster;
 
@@ -34,10 +35,15 @@ final public class RedisClusterConnectionPool implements RedisConnectionPool {
         poolConfig.setTestOnReturn(connectionPoolConfiguration.testOnReturn());
         poolConfig.setTestWhileIdle(connectionPoolConfiguration.testOnIdle());
 
+        DefaultJedisClientConfig jedisClientConfig = DefaultJedisClientConfig.builder()
+                                                                             .connectionTimeoutMillis(configuration.connectionTimeout())
+                                                                             .socketTimeoutMillis(configuration.socketTimeout())
+                                                                             .ssl(configuration.ssl())
+                                                                             .build();
+
         cluster = new JedisCluster(
                 clusterNodes,
-                configuration.connectionTimeout(),
-                configuration.socketTimeout(),
+                jedisClientConfig,
                 configuration.maxRedirections(),
                 poolConfig
         );

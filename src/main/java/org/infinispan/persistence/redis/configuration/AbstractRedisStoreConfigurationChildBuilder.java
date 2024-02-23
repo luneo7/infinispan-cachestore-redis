@@ -84,4 +84,9 @@ public abstract class AbstractRedisStoreConfigurationChildBuilder<S> extends Abs
     public RedisStoreConfigurationBuilder key2StringMapper(String key2StringMapper) {
         return builder.key2StringMapper(key2StringMapper);
     }
+
+    @Override
+    public RedisStoreConfigurationBuilder ssl(boolean ssl) {
+        return builder.ssl(ssl);
+    }
 }
