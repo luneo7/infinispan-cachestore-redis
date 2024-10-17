@@ -12,23 +12,14 @@ final public class Util {
     }
 
     public static Compressor getCompressor(RedisStoreConfiguration.Compressor compressor, RedisStoreConfiguration configuration, PersistenceMarshaller persistenceMarshaller) {
-        switch (compressor) {
-            case BROTLI:
-                return new BrotliCompressor(persistenceMarshaller, configuration.compressionLevel());
-            case GZIP:
-                return new GzipCompressor(persistenceMarshaller, configuration.compressionLevel());
-            case LZ4:
-                return new Lz4Compressor(persistenceMarshaller);
-            case LZF:
-                return new LzfCompressor(persistenceMarshaller);
-            case NONE:
-                return new NoCompressor(persistenceMarshaller);
-            case SNAPPY:
-                return new SnappyCompressor(persistenceMarshaller, configuration.compressionBlockSize());
-            case ZSTD:
-                return new ZstdCompressor(persistenceMarshaller, configuration.compressionLevel());
-            default:
-                throw new IllegalStateException("Invalid compressor");
-        }
+        return switch (compressor) {
+            case BROTLI -> new BrotliCompressor(persistenceMarshaller, configuration.compressionLevel());
+            case GZIP -> new GzipCompressor(persistenceMarshaller, configuration.compressionLevel());
+            case LZ4 -> new Lz4Compressor(persistenceMarshaller);
+            case LZF -> new LzfCompressor(persistenceMarshaller);
+            case NONE -> new NoCompressor(persistenceMarshaller);
+            case SNAPPY -> new SnappyCompressor(persistenceMarshaller, configuration.compressionBlockSize());
+            case ZSTD -> new ZstdCompressor(persistenceMarshaller, configuration.compressionLevel());
+        };
     }
 }

@@ -17,7 +17,7 @@ import java.util.List;
 
 @BuiltBy(RedisStoreConfigurationBuilder.class)
 @ConfigurationFor(RedisStore.class)
-final public class RedisStoreConfiguration extends AbstractStoreConfiguration {
+final public class RedisStoreConfiguration extends AbstractStoreConfiguration<RedisStoreConfiguration> {
     public enum Topology {
         CLUSTER,
         SENTINEL,
@@ -44,7 +44,7 @@ final public class RedisStoreConfiguration extends AbstractStoreConfiguration {
     static final AttributeDefinition<Integer> CONNECTION_TIMEOUT = AttributeDefinition.builder("connectionTimeout", 2000).build();
     static final AttributeDefinition<Integer> SOCKET_TIMEOUT = AttributeDefinition.builder("socketTimeout", 2000).build();
     static final AttributeDefinition<String> MASTER_NAME = AttributeDefinition.builder("masterName", null, String.class).build();
-    static final AttributeDefinition<Boolean> SSL = AttributeDefinition.builder("ssl", false, Boolean.class).build();
+    static final AttributeDefinition<Boolean> SSL = AttributeDefinition.builder("ssl", Boolean.FALSE, Boolean.class).build();
     static final AttributeDefinition<String> PASSWORD = AttributeDefinition.builder("password", null, String.class).build();
     static final AttributeDefinition<Integer> DATABASE = AttributeDefinition.builder("database", 0).build();
     static final AttributeDefinition<Integer> MAX_REDIRECTIONS = AttributeDefinition.builder("maxRedirections", 5).build();
@@ -98,7 +98,7 @@ final public class RedisStoreConfiguration extends AbstractStoreConfiguration {
             AsyncStoreConfiguration async,
             ConnectionPoolConfiguration connectionPool
     ) {
-        super(attributes, async);
+        super(Element.REDIS_STORE, attributes, async);
         this.connectionPool = connectionPool;
         servers = attributes.attribute(SERVERS);
         sentinels = attributes.attribute(SENTINELS);

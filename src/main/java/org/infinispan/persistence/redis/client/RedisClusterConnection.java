@@ -5,7 +5,6 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.params.SetParams;
 
-import java.io.IOException;
 import java.util.Map;
 
 final public class RedisClusterConnection implements RedisConnection {
@@ -53,8 +52,8 @@ final public class RedisClusterConnection implements RedisConnection {
     public long dbSize() {
         long totalSize = 0;
         Map<String, ConnectionPool> clusterNodes = cluster.getClusterNodes();
-        for (String nodeKey : clusterNodes.keySet()) {
-            try (Jedis client = new Jedis(clusterNodes.get(nodeKey).getResource())) {
+        for (ConnectionPool  connectionPool : clusterNodes.values()) {
+            try (Jedis client = new Jedis(connectionPool.getResource())) {
                 totalSize += client.dbSize();
             }
         }
@@ -65,8 +64,8 @@ final public class RedisClusterConnection implements RedisConnection {
     @Override
     public void flushDb() {
         Map<String, ConnectionPool> clusterNodes = cluster.getClusterNodes();
-        for (String nodeKey : clusterNodes.keySet()) {
-            try (Jedis client = new Jedis(clusterNodes.get(nodeKey).getResource())) {
+        for (ConnectionPool connectionPool : clusterNodes.values()) {
+            try (Jedis client = new Jedis(connectionPool.getResource())) {
                 client.flushDB();
             }
         }

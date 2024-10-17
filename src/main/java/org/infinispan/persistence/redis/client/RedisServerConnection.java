@@ -3,8 +3,6 @@ package org.infinispan.persistence.redis.client;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.params.SetParams;
 
-import java.io.IOException;
-
 final public class RedisServerConnection implements RedisConnection {
     private final Jedis client;
 

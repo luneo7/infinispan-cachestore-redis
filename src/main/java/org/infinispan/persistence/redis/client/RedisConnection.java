@@ -1,7 +1,5 @@
 package org.infinispan.persistence.redis.client;
 
-import java.io.IOException;
-
 public interface RedisConnection
 {
     /**

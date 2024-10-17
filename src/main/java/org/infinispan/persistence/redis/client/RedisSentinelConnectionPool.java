@@ -3,6 +3,7 @@ package org.infinispan.persistence.redis.client;
 import org.infinispan.persistence.redis.configuration.ConnectionPoolConfiguration;
 import org.infinispan.persistence.redis.configuration.RedisServerConfiguration;
 import org.infinispan.persistence.redis.configuration.RedisStoreConfiguration;
+import org.infinispan.persistence.redis.util.Maps;
 import redis.clients.jedis.DefaultJedisClientConfig;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisPoolConfig;
@@ -17,7 +18,7 @@ final public class RedisSentinelConnectionPool implements RedisConnectionPool {
 
     public RedisSentinelConnectionPool(RedisStoreConfiguration configuration) {
         boolean ssl = configuration.ssl();
-        Set<HostAndPort> sentinels = new HashSet<HostAndPort>();
+        Set<HostAndPort> sentinels = new HashSet<>(Maps.capacity(configuration.sentinels().size()));
 
         for (RedisServerConfiguration server : configuration.sentinels()) {
             sentinels.add(new HostAndPort(server.host(), server.port()));

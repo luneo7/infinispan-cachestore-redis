@@ -96,24 +96,24 @@ final public class RedisStoreConfigurationBuilder
         Topology topology = this.attributes.attribute(RedisStoreConfiguration.TOPOLOGY).get();
         String masterName = this.attributes.attribute(RedisStoreConfiguration.MASTER_NAME).get();
 
-        if (topology.equals(Topology.SENTINEL) && (masterName == null || masterName.equals(""))) {
+        if (Topology.SENTINEL == topology && (masterName == null || masterName.isEmpty())) {
             // Master name is required
             throw new CacheConfigurationException("master-name must be defined when using a sentinel topology.");
         }
 
-        if (topology.equals(Topology.SENTINEL) && this.sentinels.size() == 0) {
+        if (Topology.SENTINEL == topology && this.sentinels.isEmpty()) {
             // One or more Sentinel servers are required
             throw new CacheConfigurationException("At least one sentinel-server must be defined " +
                                                           "when using a sentinel topology.");
         }
 
-        if (topology.equals(Topology.CLUSTER) && this.servers.size() == 0) {
+        if (Topology.CLUSTER == topology && this.servers.isEmpty()) {
             // One or more Redis servers are required
             throw new CacheConfigurationException("One or more redis-server must be defined " +
                                                           "when using a cluster topology.");
         }
 
-        if (topology.equals(Topology.SERVER) && this.servers.size() == 0) {
+        if (Topology.SERVER == topology && this.servers.isEmpty()) {
             // A single Redis servers are required
             throw new CacheConfigurationException("A redis-server must be defined " +
                                                           "when using a server topology.");
@@ -166,12 +166,12 @@ final public class RedisStoreConfigurationBuilder
 
     @Override
     public RedisStoreConfiguration create() {
-        List<RedisServerConfiguration> redisServers = new ArrayList<RedisServerConfiguration>();
+        List<RedisServerConfiguration> redisServers = new ArrayList<>(servers.size());
         for (RedisServerConfigurationBuilder server : servers) {
             redisServers.add(server.create());
         }
 
-        List<RedisServerConfiguration> redisSentinels = new ArrayList<RedisServerConfiguration>();
+        List<RedisServerConfiguration> redisSentinels = new ArrayList<>(sentinels.size());
         for (RedisSentinelConfigurationBuilder server : sentinels) {
             redisSentinels.add(server.create());
         }

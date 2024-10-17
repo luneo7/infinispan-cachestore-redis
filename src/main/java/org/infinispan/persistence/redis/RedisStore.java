@@ -45,6 +45,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import static java.lang.Math.min;
 import static org.infinispan.persistence.redis.compression.Util.getCompressor;
 
 @ConfiguredBy(RedisStoreConfiguration.class)
@@ -163,12 +164,14 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
                 Metadata metadata = entry.getMetadata();
 
                 if (null != metadata) {
-                    lifespan = metadata.lifespan();
-                    long maxIdle = metadata.maxIdle();
-                    if (lifespan > 0) {
-                        lifespan = toSeconds(lifespan, entry.getKey());
-                    } else if (maxIdle > 0) {
-                        lifespan = toSeconds(maxIdle, entry.getKey());
+                    long lset = metadata.lifespan();
+                    long muet = metadata.maxIdle();
+                    if (lset <= 0 && muet > 0) {
+                        lifespan = toSeconds(muet, entry.getKey());
+                    } else if (muet <= 0 && lset > 0) {
+                        lifespan = toSeconds(lset, entry.getKey());
+                    } else if (muet > 0) {
+                        lifespan = toSeconds(min(lset, muet), entry.getKey());
                     }
                 }
 
@@ -415,10 +418,9 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
             if (this == o) {
                 return true;
             }
-            if (!(o instanceof Entry)) {
+            if (!(o instanceof Entry entry)) {
                 return false;
             }
-            Entry entry = (Entry) o;
             return Arrays.equals(marshalledValue, entry.marshalledValue) && compressor == entry.compressor;
         }
 
@@ -436,45 +438,33 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
         <E> E unmarshallKey(byte[] bytes);
     }
 
-    private static class KeyWithCacheNameHandler implements RedisKeyHandler {
-        private final String cacheName;
-        private final TwoWayKey2StringMapper twoWayKey2StringMapper;
-
-        public KeyWithCacheNameHandler(String cacheName, TwoWayKey2StringMapper twoWayKey2StringMapper) {
-            this.cacheName = cacheName;
-            this.twoWayKey2StringMapper = twoWayKey2StringMapper;
-        }
+    private record KeyWithCacheNameHandler(String cacheName, TwoWayKey2StringMapper twoWayKey2StringMapper) implements RedisKeyHandler {
 
         @Override
-        public byte[] marshallKey(int segment, Object key) {
-            return SafeEncoder.encode(cacheName + "|" + twoWayKey2StringMapper.getStringMapping(key));
+            public byte[] marshallKey(int segment, Object key) {
+                return SafeEncoder.encode(cacheName + "|" + twoWayKey2StringMapper.getStringMapping(key));
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <E> E unmarshallKey(byte[] bytes) {
+                String[] encodedKey = SafeEncoder.encode(bytes).split("\\|");
+                int keyPosition = encodedKey.length > 0 ? 1 : 0;
+                return (E) twoWayKey2StringMapper.getKeyMapping(encodedKey[keyPosition]);
+            }
         }
+
+    private record KeyHandler(TwoWayKey2StringMapper twoWayKey2StringMapper) implements RedisKeyHandler {
 
         @Override
-        @SuppressWarnings("unchecked")
-        public <E> E unmarshallKey(byte[] bytes) {
-            String[] encodedKey = SafeEncoder.encode(bytes).split("\\|");
-            int keyPosition = encodedKey.length > 0 ? 1 : 0;
-            return (E) twoWayKey2StringMapper.getKeyMapping(encodedKey[keyPosition]);
-        }
-    }
+            public byte[] marshallKey(int segment, Object key) {
+                return SafeEncoder.encode(twoWayKey2StringMapper.getStringMapping(key));
+            }
 
-    private static class KeyHandler implements RedisKeyHandler {
-        private final TwoWayKey2StringMapper twoWayKey2StringMapper;
-
-        public KeyHandler(TwoWayKey2StringMapper twoWayKey2StringMapper) {
-            this.twoWayKey2StringMapper = twoWayKey2StringMapper;
+            @Override
+            @SuppressWarnings("unchecked")
+            public <E> E unmarshallKey(byte[] bytes) {
+                return (E) twoWayKey2StringMapper.getKeyMapping(SafeEncoder.encode(bytes));
+            }
         }
-
-        @Override
-        public byte[] marshallKey(int segment, Object key) {
-            return SafeEncoder.encode(twoWayKey2StringMapper.getStringMapping(key));
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public <E> E unmarshallKey(byte[] bytes) {
-            return (E) twoWayKey2StringMapper.getKeyMapping(SafeEncoder.encode(bytes));
-        }
-    }
 }
