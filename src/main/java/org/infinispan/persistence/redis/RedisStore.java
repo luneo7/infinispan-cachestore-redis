@@ -35,13 +35,13 @@ import redis.clients.jedis.util.SafeEncoder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
@@ -63,8 +63,7 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
     private RedisKeyHandler keyHandler;
     private RedisStoreConfiguration.Compressor defaultCompressor;
     private PersistenceMarshaller persistenceMarshaller;
-    private final Map<RedisStoreConfiguration.Compressor, Compressor> decompressors = Collections.synchronizedMap(
-            new EnumMap<>(RedisStoreConfiguration.Compressor.class));
+    private final Map<RedisStoreConfiguration.Compressor, Compressor> decompressors = new ConcurrentHashMap<>();
     private RedisStoreConfiguration redisStoreConfiguration;
 
     @Override
@@ -158,8 +157,7 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
             try {
                 long lifespan = -1;
                 byte[] marshalledKey = keyHandler.marshallKey(segment, entry.getKey());
-                byte[] marshalledValue = persistenceMarshaller.objectToByteBuffer(new Entry(marshall(entry.getMarshalledValue()),
-                                                                                            defaultCompressor));
+                byte[] marshalledValue = marshall(entry);
 
                 Metadata metadata = entry.getMetadata();
 
@@ -212,7 +210,9 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
             RedisConnection connection = null;
             try {
                 connection = connectionPool.getConnection();
-                connection.flushDb();
+                for (byte[] keyBytes : connection.scan(cacheName)) {
+                    connection.delete(keyBytes);
+                }
             } catch (Exception ex) {
                 LOGGER.errorf(ex, "Failed to clear all elements in the redis store for cache '%s'", cacheName);
                 throw new PersistenceException(ex);
@@ -250,7 +250,13 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
             RedisConnection connection = null;
             try {
                 connection = connectionPool.getConnection();
-                return connection.dbSize();
+                Iterator<byte[]> iterator = connection.scan(cacheName).iterator();
+                long count = 0;
+                while (iterator.hasNext()) {
+                    iterator.next();
+                    count++;
+                }
+                return count;
             } catch (Exception ex) {
                 LOGGER.errorf(ex, "Failed to fetch element count from the redis store for cache '%s'", cacheName);
                 throw new PersistenceException(ex);
@@ -311,14 +317,32 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
                 Flowable.using(
                         () -> connection.scan(cacheName),
                         it -> Flowable.fromIterable(it)
-                                      .map(o -> keyHandler.unmarshallKey(o))
-                                      .filter(key -> combinedFilter == null || combinedFilter.test((K) key))
-                                      .flatMap(key -> Flowable.fromCompletionStage(load(-1, key)))
+                                      .map(o -> (K) keyHandler.unmarshallKey(o))
+                                      .filter(key -> combinedFilter == null || combinedFilter.test(key))
+                                      .flatMap(key -> Flowable.fromCompletionStage(load(0, key)))
                                       .filter(Objects::nonNull),
                         it -> connection.release()
                 )
         );
+    }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    public Publisher<K> publishKeys(IntSet segments, Predicate<? super K> filter) {
+        Predicate<? super K> combinedFilter = PersistenceUtil.combinePredicate(segments, keyPartitioner, filter);
+
+        RedisConnection connection = connectionPool.getConnection();
+
+        return blockingManager.blockingPublisher(
+                Flowable.using(
+                        () -> connection.scan(cacheName),
+                        it -> Flowable.fromIterable(it)
+                                      .filter(Objects::nonNull)
+                                      .map(o -> (K) keyHandler.unmarshallKey(o))
+                                      .filter(key -> combinedFilter == null || combinedFilter.test(key)),
+                        it -> connection.release()
+                )
+        );
     }
 
     @Override
@@ -340,41 +364,60 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
         return (int) TimeUnit.MILLISECONDS.toSeconds(millis);
     }
 
-    private byte[] marshall(Object entry) {
+    private byte[] compress(Object entry) {
         return compressor.compress(entry);
     }
 
-    private <E> E unmarshall(byte[] bytes, Compressor compressor) {
-        return compressor.uncompress(bytes);
-    }
+    private <E> E decompress(Entry entry) {
+        Compressor decompressor = compressor;
 
-    private MarshallableEntry<K, V> unmarshallEntry(Object key, byte[] valueBytes) {
-        try {
-            Entry entry = (Entry) persistenceMarshaller.objectFromByteBuffer(valueBytes);
-            Compressor decompressor = compressor;
-
-            if (entry.compressor != null && defaultCompressor != entry.compressor) {
+        if (entry.compressor != null && defaultCompressor != entry.compressor) {
+            decompressor = decompressors.get(entry.compressor);
+            if (decompressor == null) {
                 decompressor = decompressors.computeIfAbsent(entry.compressor,
                                                              ignored -> getCompressor(entry.compressor, redisStoreConfiguration,
                                                                                       persistenceMarshaller));
             }
+        }
 
-            MarshalledValue value = unmarshall(entry.marshalledValue, decompressor);
+        return decompressor.uncompress(entry.marshalledValue);
+    }
 
-            if (value == null) {
-                return null;
-            }
+    private byte[] marshall(MarshallableEntry<? extends K, ? extends V> entry) {
+        try {
+            return persistenceMarshaller.objectToByteBuffer(new Entry(compress(entry.getMarshalledValue()), defaultCompressor));
+        } catch (IOException e) {
+            throw new PersistenceException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new PersistenceException(e);
+        }
+    }
 
-            return entryFactory.create(key,
-                                       value.getValueBytes(),
-                                       value.getMetadataBytes(),
-                                       value.getInternalMetadataBytes(),
-                                       value.getCreated(),
-                                       value.getLastUsed());
+    private MarshallableEntry<K, V> unmarshallEntry(Object key, byte[] valueBytes) {
+        MarshalledValue value = unmarshall(valueBytes);
+
+        if (value == null) {
+            return null;
+        }
+
+        return entryFactory.create(key,
+                                   value.getValueBytes(),
+                                   value.getMetadataBytes(),
+                                   value.getInternalMetadataBytes(),
+                                   value.getCreated(),
+                                   value.getLastUsed());
+    }
+
+    private MarshalledValue unmarshall(byte[] valueBytes) {
+        if (valueBytes == null)
+            return null;
+
+        try {
+            return decompress((Entry) persistenceMarshaller.objectFromByteBuffer(valueBytes));
         } catch (IOException | ClassNotFoundException e) {
             throw new PersistenceException(e);
         }
-
     }
 
     private TwoWayKey2StringMapper getTwoWayMapper(InitializationContext ctx,
@@ -441,30 +484,30 @@ final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
     private record KeyWithCacheNameHandler(String cacheName, TwoWayKey2StringMapper twoWayKey2StringMapper) implements RedisKeyHandler {
 
         @Override
-            public byte[] marshallKey(int segment, Object key) {
-                return SafeEncoder.encode(cacheName + "|" + twoWayKey2StringMapper.getStringMapping(key));
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public <E> E unmarshallKey(byte[] bytes) {
-                String[] encodedKey = SafeEncoder.encode(bytes).split("\\|");
-                int keyPosition = encodedKey.length > 0 ? 1 : 0;
-                return (E) twoWayKey2StringMapper.getKeyMapping(encodedKey[keyPosition]);
-            }
+        public byte[] marshallKey(int segment, Object key) {
+            return SafeEncoder.encode(cacheName + "|" + twoWayKey2StringMapper.getStringMapping(key));
         }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <E> E unmarshallKey(byte[] bytes) {
+            String[] encodedKey = SafeEncoder.encode(bytes).split("\\|");
+            int keyPosition = encodedKey.length > 0 ? 1 : 0;
+            return (E) twoWayKey2StringMapper.getKeyMapping(encodedKey[keyPosition]);
+        }
+    }
 
     private record KeyHandler(TwoWayKey2StringMapper twoWayKey2StringMapper) implements RedisKeyHandler {
 
         @Override
-            public byte[] marshallKey(int segment, Object key) {
-                return SafeEncoder.encode(twoWayKey2StringMapper.getStringMapping(key));
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public <E> E unmarshallKey(byte[] bytes) {
-                return (E) twoWayKey2StringMapper.getKeyMapping(SafeEncoder.encode(bytes));
-            }
+        public byte[] marshallKey(int segment, Object key) {
+            return SafeEncoder.encode(twoWayKey2StringMapper.getStringMapping(key));
         }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <E> E unmarshallKey(byte[] bytes) {
+            return (E) twoWayKey2StringMapper.getKeyMapping(SafeEncoder.encode(bytes));
+        }
+    }
 }

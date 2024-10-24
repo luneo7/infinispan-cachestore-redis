@@ -19,8 +19,13 @@ public class RedisCluster extends AbstractRedisServer
 
     public void start() throws IOException
     {
+        start(START_PORT);
+    }
+
+    public void start(int startPort) throws IOException
+    {
         int startSlot = 0;
-        int portPosition = START_PORT;
+        int portPosition = startPort;
 
         for (int serverNum : new int[] {1,2,3}) {
             String workingDir = String.format("%s/redis/server%d", this.testPath, serverNum);
@@ -29,8 +34,8 @@ public class RedisCluster extends AbstractRedisServer
 
             this.addSlots(portPosition, startSlot, startSlot + SLOTS_PER_CLUSTER_NODE);
 
-            if (portPosition != START_PORT) {
-                this.meetServer(START_PORT, portPosition);
+            if (portPosition != startPort) {
+                this.meetServer(startPort, portPosition);
             }
 
             startSlot += SLOTS_PER_CLUSTER_NODE + 1;
