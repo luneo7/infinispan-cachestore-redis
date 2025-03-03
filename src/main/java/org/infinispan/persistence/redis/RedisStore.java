@@ -49,7 +49,7 @@ import static java.lang.Math.min;
 import static org.infinispan.persistence.redis.compression.Util.getCompressor;
 
 @ConfiguredBy(RedisStoreConfiguration.class)
-final public class RedisStore<K, V> implements NonBlockingStore<K, V> {
+public final class RedisStore<K, V> implements NonBlockingStore<K, V> {
     private static final Log LOGGER = LogFactory.getLog(RedisStore.class, Log.class);
 
     private volatile RedisConnectionPool connectionPool = null;

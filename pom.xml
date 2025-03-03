@@ -5,8 +5,7 @@
 
     <groupId>io.github.luneo7</groupId>
     <artifactId>infinispan-cachestore-redis</artifactId>
-    <version>15.0.11.Final</version>
-    <packaging>bundle</packaging>
+    <version>15.0.14.Final</version>
 
     <name>Infinispan Redis CacheStore</name>
     <description>Infinispan CacheStore using Redis</description>
@@ -84,8 +83,8 @@
     </distributionManagement>
 
     <properties>
-        <infinispan.version>15.0.11.Final</infinispan.version>
-        <infinispan.protostream.processor.version>5.0.12.Final</infinispan.protostream.processor.version>
+        <infinispan.version>15.0.14.Final</infinispan.version>
+        <infinispan.protostream.processor.version>5.0.13.Final</infinispan.protostream.processor.version>
         <infinispan.core.schema.version>15.0</infinispan.core.schema.version>
         <version.testng>6.14.3</version.testng>
         <jboss.releases.repo.url>https://repository.jboss.org/nexus/service/local/staging/deploy/maven2/</jboss.releases.repo.url>
@@ -243,6 +242,36 @@
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.11.2</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <source>17</source>
+                    <detectJavaApiLink>false</detectJavaApiLink>
+                    <tags>
+                        <tag>
+                            <name>api.public</name>
+                            <placement>a</placement>
+                            <head>&lt;div class="deprecationBlock"&gt;&lt;b&gt;Public API&lt;/b&gt;&lt;/div&gt;</head>
+                        </tag>
+                        <tag>
+                            <name>api.private</name>
+                            <placement>a</placement>
+                            <head>&lt;div class="deprecationBlock"&gt;&lt;b&gt;THIS IS NOT PUBLIC API! This is a private implementation detail and must not be referenced by user code.&lt;/b&gt;&lt;/div&gt;</head>
+                        </tag>
+                    </tags>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.3.0</version>
 
@@ -346,13 +375,13 @@
         <dependency>
             <groupId>com.aayushatharva.brotli4j</groupId>
             <artifactId>brotli4j</artifactId>
-            <version>1.17.0</version>
+            <version>1.18.0</version>
         </dependency>
 
         <dependency>
             <groupId>com.github.luben</groupId>
             <artifactId>zstd-jni</artifactId>
-            <version>1.5.6-6</version>
+            <version>1.5.7-1</version>
         </dependency>
 
         <dependency>
@@ -389,7 +418,7 @@
                     <plugin>
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
-                        <version>4.8.6.3</version>
+                        <version>4.9.1.0</version>
                         <executions>
                             <execution>
                                 <phase>verify</phase>
@@ -404,7 +433,7 @@
                                 <plugin>
                                     <groupId>com.mebigfatguy.sb-contrib</groupId>
                                     <artifactId>sb-contrib</artifactId>
-                                    <version>7.6.4</version>
+                                    <version>7.6.9</version>
                                 </plugin>
                             </plugins>
                         </configuration>

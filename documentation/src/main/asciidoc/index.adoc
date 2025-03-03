@@ -24,15 +24,15 @@ built on top of Redis. To declare a single server local cache store:
 <?xml version="1.0" encoding="UTF-8"?>
 <infinispan
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="urn:infinispan:config:8.0 http://www.infinispan.org/schemas/infinispan-config-8.0.xsd
-                          urn:infinispan:config:store:redis:8.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-8.0.xsd"
-    xmlns="urn:infinispan:config:8.0"
-    xmlns:redis="urn:infinispan:config:store:redis:8.0" >
+    xsi:schemaLocation="urn:infinispan:config:15.0 http://www.infinispan.org/schemas/infinispan-config-15.0.xsd
+                          urn:infinispan:config:store:redis:15.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-15.0.xsd"
+    xmlns="urn:infinispan:config:15.0"
+    xmlns:redis="urn:infinispan:config:store:redis:15.0" >
 
     <cache-container>
         <local-cache>
             <persistence passivation="false">
-                <redis-store xmlns="urn:infinispan:config:store:redis:8.0"
+                <redis-store xmlns="urn:infinispan:config:store:redis:15.0"
                     topology="server" socket-timeout="10000" connection-timeout="10000">
                     <redis-server host="server1" />
                     <connection-pool min-idle="6" max-idle="10" max-total="20" min-evictable-idle-time="30000" time-between-eviction-runs="30000" />
@@ -63,15 +63,15 @@ providing failure detection and automatic failover of Redis servers.
 <?xml version="1.0" encoding="UTF-8"?>
 <infinispan
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="urn:infinispan:config:8.0 http://www.infinispan.org/schemas/infinispan-config-8.0.xsd
-                          urn:infinispan:config:store:redis:8.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-8.0.xsd"
-    xmlns="urn:infinispan:config:8.0"
-    xmlns:redis="urn:infinispan:config:store:redis:8.0" >
+    xsi:schemaLocation="urn:infinispan:config:15.0 http://www.infinispan.org/schemas/infinispan-config-15.0.xsd
+                          urn:infinispan:config:store:redis:15.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-15.0.xsd"
+    xmlns="urn:infinispan:config:15.0"
+    xmlns:redis="urn:infinispan:config:store:redis:15.0" >
 
     <cache-container>
         <local-cache>
             <persistence passivation="false">
-                <redis-store xmlns="urn:infinispan:config:store:redis:8.0"
+                <redis-store xmlns="urn:infinispan:config:store:redis:15.0"
                     topology="sentinel" master-name="mymaster" socket-timeout="10000" connection-timeout="10000">
                     <sentinel-server host="server1" />
                     <sentinel-server host="server2" />
@@ -107,15 +107,15 @@ required to run a Redis cluster.
 <?xml version="1.0" encoding="UTF-8"?>
 <infinispan
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="urn:infinispan:config:8.0 http://www.infinispan.org/schemas/infinispan-config-8.0.xsd
-                          urn:infinispan:config:store:redis:8.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-8.0.xsd"
-    xmlns="urn:infinispan:config:8.0"
-    xmlns:redis="urn:infinispan:config:store:redis:8.0" >
+    xsi:schemaLocation="urn:infinispan:config:15.0 http://www.infinispan.org/schemas/infinispan-config-15.0.xsd
+                          urn:infinispan:config:store:redis:15.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-15.0.xsd"
+    xmlns="urn:infinispan:config:15.0"
+    xmlns:redis="urn:infinispan:config:store:redis:15.0" >
 
     <cache-container>
         <local-cache>
             <persistence passivation="false">
-                <redis-store xmlns="urn:infinispan:config:store:redis:8.0"
+                <redis-store xmlns="urn:infinispan:config:store:redis:15.0"
                     topology="cluster" socket-timeout="10000" connection-timeout="10000">
                     <redis-server host="server1" port="6379" />
                     <redis-server host="server2" port="6379" />
@@ -146,15 +146,15 @@ database ID is defined using the database attribute on the redis-store XML tag.
 <?xml version="1.0" encoding="UTF-8"?>
 <infinispan
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="urn:infinispan:config:8.0 http://www.infinispan.org/schemas/infinispan-config-8.0.xsd
-                          urn:infinispan:config:store:redis:8.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-8.0.xsd"
-    xmlns="urn:infinispan:config:8.0"
-    xmlns:redis="urn:infinispan:config:store:redis:8.0" >
+    xsi:schemaLocation="urn:infinispan:config:15.0 http://www.infinispan.org/schemas/infinispan-config-15.0.xsd
+                          urn:infinispan:config:store:redis:15.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-15.0.xsd"
+    xmlns="urn:infinispan:config:15.0"
+    xmlns:redis="urn:infinispan:config:store:redis:15.0" >
 
     <cache-container>
         <local-cache>
             <persistence passivation="false">
-                <redis-store xmlns="urn:infinispan:config:store:redis:8.0"
+                <redis-store xmlns="urn:infinispan:config:store:redis:15.0"
                     topology="sentinel" master-name="mymaster" socket-timeout="10000" connection-timeout="10000" database="5">
                     <sentinel-server host="server1" />
                     <sentinel-server host="server2" />
@@ -178,15 +178,15 @@ XML tag.
 <?xml version="1.0" encoding="UTF-8"?>
 <infinispan
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="urn:infinispan:config:8.0 http://www.infinispan.org/schemas/infinispan-config-8.0.xsd
-                          urn:infinispan:config:store:redis:8.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-8.0.xsd"
-    xmlns="urn:infinispan:config:8.0"
-    xmlns:redis="urn:infinispan:config:store:redis:8.0" >
+    xsi:schemaLocation="urn:infinispan:config:15.0 http://www.infinispan.org/schemas/infinispan-config-15.0.xsd
+                          urn:infinispan:config:store:redis:15.0 http://www.infinispan.org/schemas/infinispan-cachestore-redis-config-15.0.xsd"
+    xmlns="urn:infinispan:config:15.0"
+    xmlns:redis="urn:infinispan:config:store:redis:15.0" >
 
     <cache-container>
         <local-cache>
             <persistence passivation="false">
-                <redis-store xmlns="urn:infinispan:config:store:redis:8.0"
+                <redis-store xmlns="urn:infinispan:config:store:redis:15.0"
                     topology="sentinel" master-name="mymaster" socket-timeout="10000" connection-timeout="10000" password="mysecret">
                     <sentinel-server host="server1" />
                     <sentinel-server host="server2" />
